@@ -1,0 +1,16 @@
+{
+  "name": "server",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "crawlee": "^3.18.2",
+    "playwright": "^1.64.1"
+  }
+}
