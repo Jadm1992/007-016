@@ -29,6 +29,30 @@ const PUBLIC_DIR = path.resolve(import.meta.dir, "../../public");
 const PORT = Number(process.env.PORT ?? 8787);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+const DEV_HINT = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VidGrab API</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e6e8ef; margin: 0; min-height: 100vh; display: grid; place-items: center; }
+    main { max-width: 560px; padding: 32px; }
+    h1 { margin: 0 0 12px; font-size: 1.4rem; }
+    p { color: #a1a7b5; line-height: 1.5; }
+    code { background: #1b1f2a; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>API is running on port ${PORT}</h1>
+    <p>This process is the backend. The React UI is not built yet, so there is nothing to serve here.</p>
+    <p>In another terminal, from the repo root, run <code>bun install</code> then <code>bun run dev</code>. Open the Vite URL it prints (usually <code>http://localhost:5173</code>).</p>
+    <p>For a single-process production setup, run <code>bun run build</code> first, then restart this server. It will serve the built files from <code>public/</code>.</p>
+  </main>
+</body>
+</html>`;
+
 async function saveJob(jobsDir: string, job: JobState): Promise<void> {
   await mkdir(jobsDir, { recursive: true });
   const file = path.join(jobsDir, `${job.id}.json`);
@@ -45,8 +69,6 @@ export async function loadJob(jobsDir: string, id: string): Promise<JobState | n
   }
 }
 
-// Reads every meta.json written under the job's output directory.
-// The job directory is named after the target: a profile username, or the shortcode of a single post.
 export async function loadJobPosts(outDir: string, job: JobState): Promise<PostRecord[]> {
   const target = classifyUrl(job.inputUrl);
   const jobName = target.kind === "profile" ? target.username! : target.shortcode ?? target.storyId ?? "story";
@@ -57,7 +79,6 @@ export async function loadJobPosts(outDir: string, job: JobState): Promise<PostR
     const meta = await readFile(path.join(jobDir, entry.name, "meta.json"), "utf8").catch(() => null);
     if (!meta) continue;
     const record = JSON.parse(meta) as PostRecord;
-    // localPath is stored relative to the job directory; rebase it to the output root for /media URLs.
     for (const m of record.media) if (m.localPath) m.localPath = `${jobName}/${m.localPath}`;
     records.push(record);
   }
@@ -103,7 +124,6 @@ export function buildHandler(outDir: string, makeOptions: (inputUrl: string) => 
   return async function handle(req: Request): Promise<Response> {
     const url = new URL(req.url);
 
-    // Static assets from the Vite build in public/
     if (req.method === "GET" && !url.pathname.startsWith("/jobs") && !url.pathname.startsWith("/media")) {
       const rel = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
       const file = path.resolve(PUBLIC_DIR, rel);
@@ -111,9 +131,11 @@ export function buildHandler(outDir: string, makeOptions: (inputUrl: string) => 
         const f = Bun.file(file);
         if (await f.exists()) return new Response(f);
       }
-      // SPA fallback
       const index = Bun.file(path.join(PUBLIC_DIR, "index.html"));
       if (await index.exists()) return new Response(index);
+      if (url.pathname === "/") {
+        return new Response(DEV_HINT, { headers: { "content-type": "text/html; charset=utf-8" } });
+      }
     }
 
     if (req.method === "POST" && url.pathname === "/jobs") {
@@ -149,7 +171,6 @@ export function buildHandler(outDir: string, makeOptions: (inputUrl: string) => 
       return job ? json(job) : json({ error: "job not found" }, 404);
     }
 
-    // Serves saved media files from the output directory. Paths must stay inside it.
     const media = url.pathname.match(/^\/media\/(.+)$/);
     if (req.method === "GET" && media) {
       const rel = decodeURIComponent(media[1]!);
