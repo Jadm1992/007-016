@@ -102,12 +102,20 @@ export function buildHandler(outDir: string, makeOptions: (inputUrl: string) => 
 
   return async function handle(req: Request): Promise<Response> {
     const url = new URL(req.url);
-    if (req.method === "GET" && url.pathname === "/") {
-      return new Response(Bun.file(path.join(PUBLIC_DIR, "index.html")));
+
+    // Static assets from the Vite build in public/
+    if (req.method === "GET" && !url.pathname.startsWith("/jobs") && !url.pathname.startsWith("/media")) {
+      const rel = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
+      const file = path.resolve(PUBLIC_DIR, rel);
+      if (file.startsWith(PUBLIC_DIR + path.sep) || file === PUBLIC_DIR) {
+        const f = Bun.file(file);
+        if (await f.exists()) return new Response(f);
+      }
+      // SPA fallback
+      const index = Bun.file(path.join(PUBLIC_DIR, "index.html"));
+      if (await index.exists()) return new Response(index);
     }
-    if (req.method === "GET" && /^\/(styles\.css|app\.js)$/.test(url.pathname)) {
-      return new Response(Bun.file(path.join(PUBLIC_DIR, url.pathname.slice(1))));
-    }
+
     if (req.method === "POST" && url.pathname === "/jobs") {
       let inputUrl = "";
       try {
