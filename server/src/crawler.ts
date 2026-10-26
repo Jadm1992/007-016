@@ -90,6 +90,11 @@ export async function postIsComplete(dir: string, record: PostRecord): Promise<b
   return true;
 }
 
+function sharedHighlightUrl(highlightId: string): string {
+  const token = Buffer.from(`highlight:${highlightId}`, "utf8").toString("base64").replace(/=+$/, "");
+  return `https://www.instagram.com/s/${token}/`;
+}
+
 export async function runCrawl(opts: CrawlOptions): Promise<CrawlSummary> {
   const root = classifyUrl(opts.inputUrl);
   const jobName =
@@ -398,7 +403,11 @@ export async function runCrawl(opts: CrawlOptions): Promise<CrawlSummary> {
 
   const startLabel =
     root.kind === "profile" ? listLabel : root.kind === "highlight" ? highlightLabel : postLabel;
-  await crawler.run([{ url: root.canonicalUrl, userData: { label: startLabel, owner: root.username } }]);
+  const startUrl =
+    root.kind === "highlight" && root.highlightId
+      ? sharedHighlightUrl(root.highlightId)
+      : root.canonicalUrl;
+  await crawler.run([{ url: startUrl, userData: { label: startLabel, owner: root.username } }]);
 
   await writeAtomic(
     path.join(jobDir, "job.json"),
