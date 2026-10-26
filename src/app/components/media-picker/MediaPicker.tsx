@@ -3,7 +3,6 @@ import { useMediaSelection } from "./hooks/useMediaSelection";
 import { MediaCarousel } from "./MediaCarousel";
 import { MediaPickerDialog } from "./MediaPickerDialog";
 import { MediaPickerFooter } from "./MediaPickerFooter";
-import "./media-picker.css";
 
 export interface MediaPickerItem {
   id: string;
@@ -32,42 +31,27 @@ export interface MediaPickerProps {
 
 function defaultFileName(item: MediaPickerItem, index: number): string {
   if (item.fileName?.trim()) return item.fileName.trim();
-
   try {
     const pathname = new URL(item.src, window.location.href).pathname;
     const lastSegment = pathname.split("/").filter(Boolean).at(-1);
     if (lastSegment) {
-      const decoded = decodeURIComponent(lastSegment).replace(
-        /[\\/:*?"<>|\p{Cc}]/gu,
-        "_",
-      );
+      const decoded = decodeURIComponent(lastSegment).replace(/[\\/:*?"<>|\p{Cc}]/gu, "_");
       if (decoded && decoded !== "." && decoded !== "..") return decoded;
     }
   } catch {
-    // Fall through to a type-based filename when the URL cannot be parsed.
+    // Fall through.
   }
-
   return `${item.type}-${index + 1}.${item.type === "image" ? "jpg" : "mp4"}`;
 }
 
-async function downloadFromUrls(
-  items: readonly MediaPickerItem[],
-): Promise<void> {
+async function downloadFromUrls(items: readonly MediaPickerItem[]): Promise<void> {
   const files = await Promise.all(
     items.map(async (item, index) => {
       const response = await fetch(item.src);
-      if (!response.ok) {
-        throw new Error(
-          `Could not download ${defaultFileName(item, index)} (HTTP ${response.status}).`,
-        );
-      }
-      return {
-        name: defaultFileName(item, index),
-        blob: await response.blob(),
-      };
+      if (!response.ok) throw new Error(`Could not download ${defaultFileName(item, index)} (HTTP ${response.status}).`);
+      return { name: defaultFileName(item, index), blob: await response.blob() };
     }),
   );
-
   for (const file of files) {
     const objectUrl = URL.createObjectURL(file.blob);
     const anchor = document.createElement("a");
@@ -118,151 +102,78 @@ export function MediaPicker({
 
   const handleDownload = useCallback(async () => {
     if (selection.selectedItems.length === 0 || isDownloading) return;
-
     setIsDownloading(true);
     setDownloadError(null);
     try {
       if (onDownload) await onDownload(selection.selectedItems);
       else await downloadFromUrls(selection.selectedItems);
     } catch (error) {
-      setDownloadError(
-        error instanceof Error
-          ? error.message
-          : "The selected media could not be downloaded. Check the media URLs or provide an onDownload handler.",
-      );
+      setDownloadError(error instanceof Error ? error.message : "The selected media could not be downloaded.");
     } finally {
       setIsDownloading(false);
     }
   }, [isDownloading, onDownload, selection.selectedItems]);
 
   return (
-    <div className="mp-root">
+    <div>
       {!hideTrigger && (
         <button
           ref={triggerRef}
-          className="mp-trigger inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition"
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg"
           type="button"
           aria-haspopup="dialog"
           aria-expanded={isOpen}
           onClick={() => setOpen(true)}
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="18"
-            height="18"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.7 1.7M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.7-1.7"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-          </svg>
           {triggerLabel}
         </button>
       )}
 
-      <MediaPickerDialog
-        open={isOpen}
-        title={title}
-        titleId={titleId}
-        onClose={handleClose}
-      >
-        <header className="mp-header">
-          <div className="mp-heading-group">
-            <div className="mp-heading-icon" aria-hidden="true">
-              <svg
-                viewBox="0 0 24 24"
-                width="22"
-                height="22"
-                fill="none"
-                aria-hidden="true"
-              >
-                <rect
-                  x="3.5"
-                  y="4"
-                  width="17"
-                  height="16"
-                  rx="3"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                />
-                <circle cx="8.5" cy="9" r="1.5" fill="currentColor" />
-                <path
-                  d="m5 17 4.6-4.5 3 2.6 2.5-2.2 4 4.1"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <div className="mp-heading-copy">
-              <h2 className="mp-title" id={titleId}>
-                {title}
-              </h2>
-              <p className="mp-subtitle">
-                {loading
-                  ? status || "Extracting media…"
-                  : `${items.length} ${items.length === 1 ? "item" : "items"} · ${imageCount} ${imageCount === 1 ? "image" : "images"} · ${videoCount} ${videoCount === 1 ? "video" : "videos"}`}
-              </p>
-            </div>
+      <MediaPickerDialog open={isOpen} title={title} titleId={titleId} onClose={handleClose}>
+        <header className="flex items-center justify-between gap-4 border-b border-white/10 px-6 py-4">
+          <div className="min-w-0">
+            <h2 className="truncate text-[17px] font-semibold text-white" id={titleId}>{title}</h2>
+            <p className="mt-1 text-xs text-zinc-400">
+              {loading
+                ? status || "Extracting media…"
+                : `${items.length} ${items.length === 1 ? "item" : "items"} · ${imageCount} ${imageCount === 1 ? "image" : "images"} · ${videoCount} ${videoCount === 1 ? "video" : "videos"}`}
+            </p>
           </div>
-          <div className="mp-header-actions">
+          <div className="flex shrink-0 items-center gap-2">
             <button
-              className={`mp-select-all-top ${selection.allSelected ? "is-selected" : ""}`}
+              className={`rounded-xl border px-3 py-2 text-xs font-medium disabled:opacity-40 ${selection.allSelected ? "border-transparent bg-gradient-to-br from-violet-500 to-violet-600 text-white" : "border-violet-300/30 bg-black/40 text-violet-200"}`}
               type="button"
               aria-pressed={selection.allSelected}
               onClick={selection.toggleAll}
               disabled={items.length === 0 || loading}
             >
-              <span aria-hidden="true">{selection.allSelected ? "✓" : ""}</span>
               {selection.allSelected ? "Deselect all" : "Select all"}
             </button>
             <button
-              className="mp-close"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-zinc-300"
               type="button"
               data-dialog-close="true"
               aria-label="Close media picker"
               onClick={() => setOpen(false)}
             >
-              <svg
-                viewBox="0 0 24 24"
-                width="17"
-                height="17"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="m6 6 12 12M18 6 6 18"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </button>
           </div>
         </header>
 
-        <section className="mp-content" aria-label="Media selection">
+        <section className="min-h-0 px-6 pt-4" aria-label="Media selection">
           <MediaCarousel
             items={items}
             selectedIds={selection.selectedIds}
             onToggleSelection={selection.toggle}
             loading={loading}
           />
-          <p className="mp-swipe-hint">
-            {loading
-              ? "Loading media…"
-              : "Drag or swipe horizontally to browse"}
+          <p className="mt-3 text-center text-xs text-zinc-500">
+            {loading ? "Loading media…" : "Drag or swipe horizontally to browse"}
           </p>
-          {downloadError && (
-            <p className="mp-error" role="alert">
-              {downloadError}
-            </p>
-          )}
+          {downloadError && <p className="mt-3 text-xs text-red-300" role="alert">{downloadError}</p>}
         </section>
 
         <MediaPickerFooter
