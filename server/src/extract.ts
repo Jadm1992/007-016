@@ -458,40 +458,12 @@ function itemsOf(node: AnyObj): AnyObj[] | null {
   return raw.filter(isObj);
 }
 
-// Reads a highlight's own item list. Does not use the story extractor.
-export function extractHighlightFromHtml(
-  html: string,
+function recordsFromItems(
+  items: AnyObj[],
   highlightId: string,
   canonicalUrl: string,
 ): PostRecord[] {
   const fetchedAt = new Date().toISOString();
-  let items: AnyObj[] | null = null;
-
-  for (const root of parseEmbeddedJson(html)) {
-    const stack: unknown[] = [root];
-    let seen = 0;
-    while (stack.length && seen < 200_000) {
-      const cur = stack.pop();
-      seen++;
-      if (Array.isArray(cur)) {
-        for (const v of cur) stack.push(v);
-        continue;
-      }
-      if (!isObj(cur)) continue;
-      if (matchesHighlight(cur, highlightId)) {
-        const found = itemsOf(cur);
-        if (found && found.length) {
-          items = found;
-          break;
-        }
-      }
-      for (const v of Object.values(cur)) stack.push(v);
-    }
-    if (items) break;
-  }
-
-  if (!items) return [];
-
   const records: PostRecord[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i]!;
@@ -513,6 +485,66 @@ export function extractHighlightFromHtml(
     });
   }
   return records;
+}
+
+function highlightItemsIn(root: unknown, highlightId: string): AnyObj[] | null {
+  const stack: unknown[] = [root];
+  let seen = 0;
+  let fallback: AnyObj[] | null = null;
+  while (stack.length && seen < 200_000) {
+    const cur = stack.pop();
+    seen++;
+    if (Array.isArray(cur)) {
+      for (const v of cur) stack.push(v);
+      continue;
+    }
+    if (!isObj(cur)) continue;
+    const items = itemsOf(cur);
+    if (items && items.length && items.some((item) => mediaFromNode(item, 0))) {
+      if (matchesHighlight(cur, highlightId)) return items;
+      fallback ??= items;
+    }
+    for (const v of Object.values(cur)) stack.push(v);
+  }
+  return fallback;
+}
+
+export function extractHighlightFromHtml(
+  html: string,
+  highlightId: string,
+  canonicalUrl: string,
+): PostRecord[] {
+  for (const root of parseEmbeddedJson(html)) {
+    const items = highlightItemsIn(root, highlightId);
+    if (items) {
+      const records = recordsFromItems(items, highlightId, canonicalUrl);
+      if (records.length) return records;
+    }
+  }
+  return [];
+}
+
+// Reads highlight items from captured API or GraphQL response bodies.
+export function extractHighlightFromPayloads(
+  payloads: string[],
+  highlightId: string,
+  canonicalUrl: string,
+): PostRecord[] {
+  for (const payload of payloads) {
+    if (!payload.includes(highlightId) && !payload.includes("video_versions") && !payload.includes("image_versions2"))
+      continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    const items = highlightItemsIn(parsed, highlightId);
+    if (!items) continue;
+    const records = recordsFromItems(items, highlightId, canonicalUrl);
+    if (records.length) return records;
+  }
+  return [];
 }
 
 export function postLinksFromHrefs(
