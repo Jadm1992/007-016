@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Download, Link2, Video, CheckCircle, AlertCircle, Loader2, Play, Zap, Shield } from "lucide-react";
+import { Download, Link2, Video, AlertCircle, Loader2, Play, Zap, Shield } from "lucide-react";
+import { MediaPicker, type MediaPickerItem } from "./components/media-picker/MediaPicker";
 
 type JobStatus = "queued" | "running" | "succeeded" | "failed";
 
@@ -21,20 +22,14 @@ type PostRecord = {
   media: MediaItem[];
 };
 
-type GalleryItem = {
-  url: string;
-  filename: string;
-  type: "image" | "video";
-};
-
 export default function App() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState("");
-  const [items, setItems] = useState<GalleryItem[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [items, setItems] = useState<MediaPickerItem[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -49,7 +44,7 @@ export default function App() {
     setProgress(0);
     setProgressMsg("");
     setItems([]);
-    setSelected(new Set());
+    setPickerOpen(false);
     setBusy(false);
   }
 
@@ -67,7 +62,7 @@ export default function App() {
     setProgress(10);
     setProgressMsg("Starting…");
     setItems([]);
-    setSelected(new Set());
+    setPickerOpen(false);
 
     try {
       const res = await fetch("/jobs", {
@@ -88,14 +83,16 @@ export default function App() {
         if (status.status === "succeeded") {
           setProgress(100);
           const posts = (await fetch(`/jobs/${job.id}/posts`).then((r) => r.json())) as PostRecord[];
-          const gallery: GalleryItem[] = [];
+          const gallery: MediaPickerItem[] = [];
           for (const post of posts) {
             for (const m of post.media) {
               if (m.status !== "saved" || !m.localPath) continue;
               const mediaUrl = "/media/" + m.localPath.split("/").map(encodeURIComponent).join("/");
+              const filename = m.localPath.split("/").pop() || (m.type === "video" ? "video.mp4" : "image.jpg");
               gallery.push({
-                url: mediaUrl,
-                filename: m.localPath.split("/").pop() || (m.type === "video" ? "video.mp4" : "image.jpg"),
+                id: mediaUrl,
+                src: mediaUrl,
+                fileName: filename,
                 type: m.type,
               });
             }
@@ -103,6 +100,7 @@ export default function App() {
           setItems(gallery);
           setBusy(false);
           if (!gallery.length) setError("Job finished but no media was saved.");
+          else setPickerOpen(true);
           return;
         }
         if (status.status === "failed") {
@@ -114,31 +112,6 @@ export default function App() {
     } catch (err) {
       setError((err as Error).message || "Error");
       setBusy(false);
-    }
-  }
-
-  function toggle(url: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(url)) next.delete(url);
-      else next.add(url);
-      return next;
-    });
-  }
-
-  function download(url: string, filename: string) {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.target = "_blank";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-
-  function downloadSelected() {
-    for (const item of items) {
-      if (selected.has(item.url)) download(item.url, item.filename);
     }
   }
 
@@ -236,70 +209,18 @@ export default function App() {
           )}
 
           {items.length > 0 && (
-            <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">Choose your media</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">{items.length} item{items.length === 1 ? "" : "s"}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={downloadSelected}
-                  disabled={selected.size === 0}
-                  className="px-3 py-1.5 rounded-lg text-white text-xs font-semibold disabled:opacity-40"
-                  style={{ background: "linear-gradient(135deg, var(--primary), var(--accent))" }}
-                >
-                  Download Selected ({selected.size})
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {items.map((item) => (
-                  <article
-                    key={item.url}
-                    onClick={() => toggle(item.url)}
-                    className="rounded-xl overflow-hidden border cursor-pointer transition-all"
-                    style={{
-                      borderColor: selected.has(item.url) ? "var(--primary)" : "var(--border)",
-                      background: "var(--muted)",
-                    }}
-                  >
-                    <div className="relative aspect-video bg-black">
-                      {item.type === "video" ? (
-                        <video src={item.url} preload="metadata" playsInline className="w-full h-full object-cover" />
-                      ) : (
-                        <img src={item.url} alt="" className="w-full h-full object-cover" />
-                      )}
-                      <span
-                        className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-white text-[9px] font-bold"
-                        style={{ background: "var(--primary)" }}
-                      >
-                        {item.type === "video" ? "MP4" : "IMG"}
-                      </span>
-                      {selected.has(item.url) && (
-                        <div className="absolute top-2 right-2 w-5 h-5 rounded-md flex items-center justify-center" style={{ background: "var(--primary)" }}>
-                          <CheckCircle className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3 flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground font-mono truncate">{item.filename}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); download(item.url, item.filename); }}
-                        className="text-primary hover:opacity-80"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-
+            <div className="mt-4 pt-4 border-t flex items-center justify-between gap-3" style={{ borderColor: "var(--border)" }}>
+              <MediaPicker
+                items={items}
+                title="Choose your media"
+                triggerLabel="Browse media"
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
+              />
               <button
                 type="button"
                 onClick={reset}
-                className="mt-4 px-4 py-2 rounded-xl border text-sm"
+                className="px-4 py-2 rounded-xl border text-sm"
                 style={{ borderColor: "var(--border)" }}
               >
                 New Download
