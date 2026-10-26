@@ -41,6 +41,29 @@ describe("classifyUrl", () => {
     });
   });
 
+  test("classifies a highlight URL", () => {
+    expect(
+      classifyUrl("https://www.instagram.com/stories/highlights/1811087760130222/"),
+    ).toMatchObject({
+      kind: "highlight",
+      highlightId: "1811087760130222",
+      canonicalUrl:
+        "https://www.instagram.com/stories/highlights/1811087760130222/",
+    });
+  });
+
+  test("classifies a shared highlight token", () => {
+    const token = Buffer.from("highlight:1811087760130222").toString("base64");
+    expect(
+      classifyUrl(`https://www.instagram.com/s/${token}?story_media_id=1`),
+    ).toMatchObject({
+      kind: "highlight",
+      highlightId: "1811087760130222",
+      canonicalUrl:
+        "https://www.instagram.com/stories/highlights/1811087760130222/",
+    });
+  });
+
   test("rejects other hosts, malformed input, and reserved paths", () => {
     expect(() => classifyUrl("https://example.com/p/abc/")).toThrow(
       "Not an Instagram URL",
