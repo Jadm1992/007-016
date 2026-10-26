@@ -1,4 +1,10 @@
-export type ContentKind = "profile" | "post" | "reel" | "tv" | "story";
+export type ContentKind =
+  | "profile"
+  | "post"
+  | "reel"
+  | "tv"
+  | "story"
+  | "highlight";
 
 export type ClassifiedUrl = {
   kind: ContentKind;
@@ -6,6 +12,7 @@ export type ClassifiedUrl = {
   username?: string;
   shortcode?: string;
   storyId?: string;
+  highlightId?: string;
 };
 
 const HOSTS = new Set([
@@ -25,6 +32,16 @@ const RESERVED = new Set([
   "about",
 ]);
 
+function highlightIdFromShare(token: string): string | null {
+  try {
+    const decoded = Buffer.from(token, "base64").toString("utf8");
+    const m = decoded.match(/highlight:?(\d+)/i);
+    return m?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Normalizes an Instagram URL and classifies it. Throws on anything unsupported.
 export function classifyUrl(input: string): ClassifiedUrl {
   let url: URL;
@@ -41,6 +58,30 @@ export function classifyUrl(input: string): ClassifiedUrl {
   const parts = url.pathname.split("/").filter(Boolean);
   if (parts.length === 0)
     throw new Error(`No Instagram content path in URL: ${input}`);
+
+  if (parts[0] === "stories" && parts[1] === "highlights" && parts[2]) {
+    const highlightId = parts[2];
+    if (!/^[A-Za-z0-9_-]+$/.test(highlightId))
+      throw new Error(`Invalid highlight id in URL: ${input}`);
+    return {
+      kind: "highlight",
+      canonicalUrl: `https://www.instagram.com/stories/highlights/${highlightId}/`,
+      highlightId,
+      storyId: highlightId,
+    };
+  }
+
+  if (parts[0] === "s" && parts[1]) {
+    const highlightId = highlightIdFromShare(parts[1]);
+    if (highlightId) {
+      return {
+        kind: "highlight",
+        canonicalUrl: `https://www.instagram.com/stories/highlights/${highlightId}/`,
+        highlightId,
+        storyId: highlightId,
+      };
+    }
+  }
 
   if (parts[0] === "stories" && parts[1]) {
     const username = parts[1].toLowerCase();
@@ -67,7 +108,6 @@ export function classifyUrl(input: string): ClassifiedUrl {
     };
   }
 
-  // /<user>/p/<code>/ and /<user>/reel/<code>/ forms
   if (
     parts.length >= 3 &&
     (parts[1] === "p" || parts[1] === "reel" || parts[1] === "tv")
