@@ -176,10 +176,10 @@ export async function runCrawl(opts: CrawlOptions): Promise<CrawlSummary> {
         if (apiBody) payloads.push(apiBody);
         await page.waitForTimeout(1500);
         const html = await page.content();
-        const records =
-          extractHighlightFromPayloads(payloads, highlightId, root.canonicalUrl).length > 0
-            ? extractHighlightFromPayloads(payloads, highlightId, root.canonicalUrl)
-            : extractHighlightFromHtml(html, highlightId, root.canonicalUrl);
+        const fromPayloads = extractHighlightFromPayloads(payloads, highlightId, root.canonicalUrl);
+        const records = fromPayloads.length
+          ? fromPayloads
+          : extractHighlightFromHtml(html, highlightId, root.canonicalUrl);
         if (records.length === 0) {
           throw Object.assign(new Error(`no highlight items found for ${highlightId}`), {
             failureKind: "malformed_metadata",
