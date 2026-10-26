@@ -1,7 +1,9 @@
 /* Component-specific styling. Utility classes in the TSX markup are Tailwind CSS 4.1.12-compatible. */
 .mp-root {
   color: #f7f6ff;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
 }
 
 .mp-root *,
@@ -20,9 +22,9 @@
 }
 
 .mp-trigger {
-  border: 1px solid rgba(184, 161, 255, .25);
+  border: 1px solid rgba(184, 161, 255, 0.25);
   background: linear-gradient(105deg, #8d5cf6, #6f3ff0);
-  box-shadow: 0 9px 22px rgba(109, 63, 238, .22);
+  box-shadow: 0 9px 22px rgba(109, 63, 238, 0.22);
   cursor: pointer;
 }
 
@@ -46,22 +48,38 @@
   align-items: center;
   justify-content: center;
   padding: 12px;
-  background: rgba(0, 0, 0, .76);
+  background: rgba(0, 0, 0, 0.76);
   backdrop-filter: blur(12px);
-  animation: mp-backdrop-in .18s ease-out both;
+  animation: mp-backdrop-in 0.18s ease-out both;
 }
-
+.mp-backdrop {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
 .mp-dialog {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   width: min(100%, 896px);
   max-height: calc(100dvh - 24px);
   overflow: hidden;
-  border: 1px solid rgba(117, 101, 179, .32);
+  border: 1px solid rgba(117, 101, 179, 0.32);
   border-radius: 26px;
-  background: linear-gradient(145deg, rgba(20, 22, 38, .985), rgba(13, 14, 25, .985));
-  box-shadow: 0 24px 80px rgba(0, 0, 0, .46), 0 0 0 1px rgba(151, 123, 255, .04) inset;
-  animation: mp-dialog-in .28s cubic-bezier(.2, .8, .2, 1) both;
+  background: linear-gradient(
+    145deg,
+    rgba(20, 22, 38, 0.985),
+    rgba(13, 14, 25, 0.985)
+  );
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.46),
+    0 0 0 1px rgba(151, 123, 255, 0.04) inset;
+  animation: mp-dialog-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .mp-header {
@@ -71,7 +89,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .mp-heading-group {
@@ -88,9 +106,9 @@
   flex: 0 0 auto;
   place-items: center;
   color: #c4b5fd;
-  border: 1px solid rgba(196, 181, 253, .2);
+  border: 1px solid rgba(196, 181, 253, 0.2);
   border-radius: 16px;
-  background: rgba(139, 92, 246, .12);
+  background: rgba(139, 92, 246, 0.12);
 }
 
 .mp-heading-copy {
@@ -128,12 +146,15 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border: 1px solid rgba(184, 161, 255, .3);
+  border: 1px solid rgba(184, 161, 255, 0.3);
   color: #ddd5ff;
-  background: rgba(13, 14, 26, .7);
+  background: rgba(13, 14, 26, 0.7);
   border-radius: 11px;
   cursor: pointer;
-  transition: background .16s ease, border-color .16s ease, opacity .16s ease;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    opacity 0.16s ease;
 }
 
 .mp-select-all-top {
@@ -165,14 +186,14 @@
 
 .mp-select-all-top:hover:not(:disabled),
 .mp-secondary-button:hover:not(:disabled) {
-  border-color: rgba(184, 161, 255, .65);
-  background-color: rgba(139, 92, 246, .14);
+  border-color: rgba(184, 161, 255, 0.65);
+  background-color: rgba(139, 92, 246, 0.14);
 }
 
 .mp-select-all-top:disabled,
 .mp-secondary-button:disabled {
   cursor: not-allowed;
-  opacity: .45;
+  opacity: 0.45;
 }
 
 .mp-close {
@@ -181,18 +202,21 @@
   height: 37px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 11px;
   color: #aaaabe;
   background: transparent;
   cursor: pointer;
-  transition: color .16s ease, border-color .16s ease, background .16s ease;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
 
 .mp-close:hover {
   color: #fff;
-  border-color: rgba(196, 181, 253, .38);
-  background: rgba(255, 255, 255, .04);
+  border-color: rgba(196, 181, 253, 0.38);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .mp-content {
@@ -221,7 +245,7 @@
   width: max-content;
   min-width: 100%;
   will-change: transform;
-  transition: transform .36s cubic-bezier(.2, .8, .2, 1);
+  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .mp-track.is-dragging {
@@ -235,19 +259,25 @@
   min-width: 0;
   overflow: hidden;
   aspect-ratio: 1.55 / 1;
-  border: 1px solid rgba(167, 151, 218, .2);
+  border: 1px solid rgba(167, 151, 218, 0.2);
   border-radius: 17px;
   background: #171929;
-  opacity: .44;
-  filter: saturate(.64);
-  transition: opacity .22s ease, filter .22s ease, border-color .22s ease, box-shadow .22s ease;
+  opacity: 0.44;
+  filter: saturate(0.64);
+  transition:
+    opacity 0.22s ease,
+    filter 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
 }
 
 .mp-slide.is-active {
-  border-color: rgba(164, 127, 255, .76);
+  border-color: rgba(164, 127, 255, 0.76);
   opacity: 1;
   filter: none;
-  box-shadow: 0 0 0 1px rgba(139, 92, 246, .15), 0 18px 45px rgba(0, 0, 0, .22);
+  box-shadow:
+    0 0 0 1px rgba(139, 92, 246, 0.15),
+    0 18px 45px rgba(0, 0, 0, 0.22);
 }
 
 .mp-media-frame {
@@ -274,14 +304,14 @@
   max-width: calc(100% - 72px);
   overflow: hidden;
   padding: 6px 9px;
-  border: 1px solid rgba(178, 164, 255, .14);
+  border: 1px solid rgba(178, 164, 255, 0.14);
   border-radius: 9px;
   color: #f0edff;
-  background: rgba(9, 10, 19, .78);
+  background: rgba(9, 10, 19, 0.78);
   backdrop-filter: blur(10px);
   font-size: 10px;
   font-weight: 650;
-  letter-spacing: .07em;
+  letter-spacing: 0.07em;
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
@@ -296,30 +326,33 @@
   width: 38px;
   height: 38px;
   place-items: center;
-  border: 1px solid rgba(184, 161, 255, .42);
+  border: 1px solid rgba(184, 161, 255, 0.42);
   border-radius: 12px;
   color: #fff;
-  background: rgba(13, 14, 26, .82);
+  background: rgba(13, 14, 26, 0.82);
   backdrop-filter: blur(10px);
   cursor: pointer;
-  transition: transform .16s ease, background .16s ease, border-color .16s ease;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .mp-pick-button:hover {
   transform: scale(1.04);
-  border-color: rgba(196, 181, 253, .85);
+  border-color: rgba(196, 181, 253, 0.85);
 }
 
 .mp-pick-button.is-selected {
   border-color: transparent;
   background: linear-gradient(135deg, #9c69ff, #7047f5);
-  box-shadow: 0 5px 18px rgba(112, 71, 245, .25);
+  box-shadow: 0 5px 18px rgba(112, 71, 245, 0.25);
 }
 
 .mp-pick-empty {
   width: 14px;
   height: 14px;
-  border: 1px solid rgba(238, 233, 255, .8);
+  border: 1px solid rgba(238, 233, 255, 0.8);
   border-radius: 4px;
 }
 
@@ -338,13 +371,16 @@
   flex: 0 0 auto;
   border-radius: 999px;
   background: #51516c;
-  transition: width .24s ease, background .24s ease, box-shadow .24s ease;
+  transition:
+    width 0.24s ease,
+    background 0.24s ease,
+    box-shadow 0.24s ease;
 }
 
 .mp-pagination-dot.is-active {
   width: 18px;
   background: #a58aff;
-  box-shadow: 0 0 12px rgba(165, 138, 255, .6);
+  box-shadow: 0 0 12px rgba(165, 138, 255, 0.6);
 }
 
 .mp-swipe-hint {
@@ -369,7 +405,7 @@
   min-height: 220px;
   place-items: center;
   padding: 24px;
-  border: 1px dashed rgba(184, 161, 255, .2);
+  border: 1px dashed rgba(184, 161, 255, 0.2);
   border-radius: 17px;
   color: #a7a7bf;
   font-size: 14px;
@@ -390,8 +426,8 @@
   gap: 12px;
   margin-top: 20px;
   padding: 16px 24px 20px;
-  border-top: 1px solid rgba(255, 255, 255, .07);
-  background: rgba(0, 0, 0, .1);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .mp-footer-summary {
@@ -424,11 +460,14 @@
   border-radius: 12px;
   color: #fff;
   background: linear-gradient(105deg, #8d5cf6, #6f3ff0);
-  box-shadow: 0 9px 22px rgba(109, 63, 238, .22);
+  box-shadow: 0 9px 22px rgba(109, 63, 238, 0.22);
   font-size: 13px;
   font-weight: 650;
   cursor: pointer;
-  transition: transform .18s ease, filter .18s ease, opacity .18s ease;
+  transition:
+    transform 0.18s ease,
+    filter 0.18s ease,
+    opacity 0.18s ease;
 }
 
 .mp-download-button:hover:not(:disabled) {
@@ -437,23 +476,33 @@
 }
 
 .mp-download-button:active:not(:disabled) {
-  transform: translateY(0) scale(.99);
+  transform: translateY(0) scale(0.99);
 }
 
 .mp-download-button:disabled {
   cursor: not-allowed;
-  opacity: .4;
+  opacity: 0.4;
   box-shadow: none;
 }
 
 @keyframes mp-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes mp-dialog-in {
-  from { opacity: 0; transform: translateY(10px) scale(.99); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @media (min-width: 641px) {
@@ -575,7 +624,7 @@
   .mp-overlay *::before,
   .mp-overlay *::after {
     scroll-behavior: auto !important;
-    transition-duration: .01ms !important;
-    animation-duration: .01ms !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

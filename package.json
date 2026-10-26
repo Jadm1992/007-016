@@ -6,20 +6,35 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "audit": "bun audit",
+    "ast-grep:test": "ast-grep test --config sgconfig.yml --skip-snapshot-tests",
+    "ast-grep:scan": "ast-grep scan --config sgconfig.yml .",
+    "ast-grep:scan:json": "ast-grep scan --config sgconfig.yml --json=stream .",
+    "ast-grep:check": "ast-grep test --config sgconfig.yml --skip-snapshot-tests && ast-grep scan --config sgconfig.yml .",
+    "ast-grep:outline": "ast-grep outline --config sgconfig.yml src"
   },
+  "trustedDependencies": [
+    "just-install"
+  ],
   "dependencies": {
     "lucide-react": "0.487.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@ast-grep/cli": "^0.51.0",
+    "@ast-grep/napi": "^0.51.0",
+    "@b2bc-devkit/trivy-scan": "^1.1.0",
+    "@biomejs/biome": "^2.6.3",
+    "@nogoo9/gitleaks": "^8.30.1-post.2",
     "@tailwindcss/vite": "4.1.12",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.7.0",
+    "repomix": "^1.18.1",
     "tailwindcss": "4.1.12",
     "typescript": "5.6.3",
-    "vite": "6.3.5"
+    "vite": "6.4.5"
   }
 }

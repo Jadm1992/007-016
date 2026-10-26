@@ -30,7 +30,11 @@ export function decodeHtml(s: string): string {
     .replace(/&gt;/g, ">");
 }
 
-export function metaContent(html: string, attr: "property" | "name", key: string): string | null {
+export function metaContent(
+  html: string,
+  attr: "property" | "name",
+  key: string,
+): string | null {
   const re = new RegExp(`<meta[^>]*${attr}="${key}"[^>]*>`, "i");
   const tag = html.match(re)?.[0];
   if (!tag) return null;
@@ -39,9 +43,12 @@ export function metaContent(html: string, attr: "property" | "name", key: string
 }
 
 // Returns every JSON-LD object found in the page. Malformed blocks are skipped and reported.
-export function jsonLdBlocks(html: string): { value: unknown; malformed: boolean }[] {
+export function jsonLdBlocks(
+  html: string,
+): { value: unknown; malformed: boolean }[] {
   const out: { value: unknown; malformed: boolean }[] = [];
-  const re = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
+  const re =
+    /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
   for (const m of html.matchAll(re)) {
     try {
       out.push({ value: JSON.parse(m[1] ?? ""), malformed: false });
@@ -54,16 +61,22 @@ export function jsonLdBlocks(html: string): { value: unknown; malformed: boolean
 
 // Instagram embeds media nodes in its page JSON. These helpers read the common shapes.
 type AnyObj = Record<string, unknown>;
-const isObj = (v: unknown): v is AnyObj => typeof v === "object" && v !== null && !Array.isArray(v);
+const isObj = (v: unknown): v is AnyObj =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 
-function bestCandidate(versions: unknown): { url: string; width?: number; height?: number } | null {
+function bestCandidate(
+  versions: unknown,
+): { url: string; width?: number; height?: number } | null {
   if (!Array.isArray(versions)) return null;
   let best: { url: string; width?: number; height?: number } | null = null;
   for (const v of versions) {
     if (!isObj(v) || typeof v.url !== "string") continue;
     const width = typeof v.width === "number" ? v.width : undefined;
     const height = typeof v.height === "number" ? v.height : undefined;
-    if (!best || (width ?? 0) * (height ?? 0) > (best.width ?? 0) * (best.height ?? 0)) {
+    if (
+      !best ||
+      (width ?? 0) * (height ?? 0) > (best.width ?? 0) * (best.height ?? 0)
+    ) {
       best = { url: v.url, width, height };
     }
   }
@@ -83,37 +96,81 @@ export function mediaFromNode(node: AnyObj, index: number): MediaItem | null {
     const videoVersions = node.video_versions;
     const video = bestCandidate(videoVersions);
     if (video) {
-      return { index, type: "video", sourceUrl: video.url, width: video.width, height: video.height, mimeType: "video/mp4", status: "pending" };
+      return {
+        index,
+        type: "video",
+        sourceUrl: video.url,
+        width: video.width,
+        height: video.height,
+        mimeType: "video/mp4",
+        status: "pending",
+      };
     }
     if (typeof node.video_url === "string") {
-      return { index, type: "video", sourceUrl: node.video_url, mimeType: "video/mp4", status: "pending" };
+      return {
+        index,
+        type: "video",
+        sourceUrl: node.video_url,
+        mimeType: "video/mp4",
+        status: "pending",
+      };
     }
     // A video node must never substitute its poster image as an image item.
     return null;
   }
 
-  const imageCandidates = isObj(node.image_versions2) ? node.image_versions2.candidates : undefined;
+  const imageCandidates = isObj(node.image_versions2)
+    ? node.image_versions2.candidates
+    : undefined;
   const image = bestCandidate(imageCandidates);
   if (image) {
-    return { index, type: "image", sourceUrl: image.url, width: image.width, height: image.height, mimeType: "image/jpeg", status: "pending" };
+    return {
+      index,
+      type: "image",
+      sourceUrl: image.url,
+      width: image.width,
+      height: image.height,
+      mimeType: "image/jpeg",
+      status: "pending",
+    };
   }
   if (Array.isArray(node.display_resources)) {
     const res = bestCandidate(
       node.display_resources.map((r: unknown) =>
-        isObj(r) ? { url: r.src, width: r.config_width, height: r.config_height } : null,
+        isObj(r)
+          ? { url: r.src, width: r.config_width, height: r.config_height }
+          : null,
       ),
     );
-    if (res) return { index, type: "image", sourceUrl: res.url, width: res.width, height: res.height, mimeType: "image/jpeg", status: "pending" };
+    if (res)
+      return {
+        index,
+        type: "image",
+        sourceUrl: res.url,
+        width: res.width,
+        height: res.height,
+        mimeType: "image/jpeg",
+        status: "pending",
+      };
   }
   if (typeof node.display_url === "string") {
-    return { index, type: "image", sourceUrl: node.display_url, mimeType: "image/jpeg", status: "pending" };
+    return {
+      index,
+      type: "image",
+      sourceUrl: node.display_url,
+      mimeType: "image/jpeg",
+      status: "pending",
+    };
   }
   return null;
 }
 
 // Finds the media node that matches the shortcode inside Instagram's embedded JSON
 // (script type="application/json" blocks). Returns the matching node or null.
-export function findShortcodeNode(root: unknown, shortcode: string): AnyObj | null {
+export function findShortcodeNode(
+  root: unknown,
+  shortcode: string,
+): AnyObj | null {
   const stack: unknown[] = [root];
   let seen = 0;
   while (stack.length && seen < 200_000) {
@@ -160,7 +217,8 @@ function parseEmbeddedJson(html: string): unknown[] {
       !body.includes('"video_versions"') &&
       !body.includes('"image_versions2"') &&
       !body.includes('"edge_sidecar_to_children"')
-    ) continue;
+    )
+      continue;
     try {
       out.push(JSON.parse(body));
     } catch {
@@ -216,8 +274,11 @@ export function extractPost(input: ExtractionInput): PostRecord {
     commentCount = numberOrNull(node.comment_count);
     const carousel =
       node.carousel_media ??
-      (isObj(node.edge_sidecar_to_children) && Array.isArray(node.edge_sidecar_to_children.edges)
-        ? node.edge_sidecar_to_children.edges.map((e: unknown) => (isObj(e) && isObj(e.node) ? e.node : e))
+      (isObj(node.edge_sidecar_to_children) &&
+      Array.isArray(node.edge_sidecar_to_children.edges)
+        ? node.edge_sidecar_to_children.edges.map((e: unknown) =>
+            isObj(e) && isObj(e.node) ? e.node : e,
+          )
         : undefined);
     if (Array.isArray(carousel)) {
       carousel.forEach((child, i) => {
@@ -236,7 +297,10 @@ export function extractPost(input: ExtractionInput): PostRecord {
   }
 
   const isKnownVideo =
-    (node && (node.is_video === true || node.media_type === 2 || Array.isArray(node.video_versions))) ||
+    (node &&
+      (node.is_video === true ||
+        node.media_type === 2 ||
+        Array.isArray(node.video_versions))) ||
     input.kind === "reel";
 
   if (media.length === 0) {
@@ -244,11 +308,25 @@ export function extractPost(input: ExtractionInput): PostRecord {
     const ogVideo = metaContent(input.html, "property", "og:video");
     const ogImage = metaContent(input.html, "property", "og:image");
     if (ogVideo) {
-      media.push({ index: 0, type: "video", sourceUrl: ogVideo, mimeType: "video/mp4", status: "pending" });
+      media.push({
+        index: 0,
+        type: "video",
+        sourceUrl: ogVideo,
+        mimeType: "video/mp4",
+        status: "pending",
+      });
       errors.push("media taken from Open Graph fallback");
     } else if (ogImage && !isKnownVideo && input.kind !== "reel") {
-      media.push({ index: 0, type: "image", sourceUrl: ogImage, mimeType: "image/jpeg", status: "pending" });
-      errors.push("media taken from Open Graph fallback; carousel items may be missing");
+      media.push({
+        index: 0,
+        type: "image",
+        sourceUrl: ogImage,
+        mimeType: "image/jpeg",
+        status: "pending",
+      });
+      errors.push(
+        "media taken from Open Graph fallback; carousel items may be missing",
+      );
     }
   }
 
@@ -256,16 +334,34 @@ export function extractPost(input: ExtractionInput): PostRecord {
     // DOM fallback for live rendered elements (e.g., stories or dynamically injected tags)
     const domVideo =
       input.html.match(/<video[^>]*src="([^"]+)"[^>]*>/i)?.[1] ??
-      input.html.match(/<video[^>]*>[\s\S]*?<source[^>]*src="([^"]+)"[^>]*>/i)?.[1];
+      input.html.match(
+        /<video[^>]*>[\s\S]*?<source[^>]*src="([^"]+)"[^>]*>/i,
+      )?.[1];
     const domImage =
-      input.html.match(/<img[^>]*class="[^"]*(?:story|media|post)[^"]*"[^>]*src="([^"]+)"[^>]*>/i)?.[1] ??
-      input.html.match(/<img[^>]*src="([^"]+)"[^>]*style="[^"]*object-fit:\s*cover[^"]*"[^>]*>/i)?.[1];
+      input.html.match(
+        /<img[^>]*class="[^"]*(?:story|media|post)[^"]*"[^>]*src="([^"]+)"[^>]*>/i,
+      )?.[1] ??
+      input.html.match(
+        /<img[^>]*src="([^"]+)"[^>]*style="[^"]*object-fit:\s*cover[^"]*"[^>]*>/i,
+      )?.[1];
 
     if (domVideo) {
-      media.push({ index: 0, type: "video", sourceUrl: decodeHtml(domVideo), mimeType: "video/mp4", status: "pending" });
+      media.push({
+        index: 0,
+        type: "video",
+        sourceUrl: decodeHtml(domVideo),
+        mimeType: "video/mp4",
+        status: "pending",
+      });
       errors.push("media extracted from rendered DOM video element");
     } else if (domImage && !isKnownVideo && input.kind !== "reel") {
-      media.push({ index: 0, type: "image", sourceUrl: decodeHtml(domImage), mimeType: "image/jpeg", status: "pending" });
+      media.push({
+        index: 0,
+        type: "image",
+        sourceUrl: decodeHtml(domImage),
+        mimeType: "image/jpeg",
+        status: "pending",
+      });
       errors.push("media extracted from rendered DOM img element");
     }
   }
@@ -274,20 +370,39 @@ export function extractPost(input: ExtractionInput): PostRecord {
 
   if (media.length === 0) {
     if (isKnownVideo) {
-      throw new ExtractionError(`No video URL found for video ${input.canonicalUrl} (poster thumbnail cannot be substituted)`, "malformed_metadata");
+      throw new ExtractionError(
+        `No video URL found for video ${input.canonicalUrl} (poster thumbnail cannot be substituted)`,
+        "malformed_metadata",
+      );
     }
-    throw new ExtractionError(`No media found for ${input.canonicalUrl}`, "malformed_metadata");
+    throw new ExtractionError(
+      `No media found for ${input.canonicalUrl}`,
+      "malformed_metadata",
+    );
   }
   const dedup = new Map<string, MediaItem>();
   for (const m of media) if (!dedup.has(m.sourceUrl)) dedup.set(m.sourceUrl, m);
   media = [...dedup.values()].map((m, i) => ({ ...m, index: i }));
 
   const extractionStatus = errors.length ? "partial" : "complete";
-  return { ...base, caption, takenAt, likeCount, commentCount, media, extractionStatus, errors };
+  return {
+    ...base,
+    caption,
+    takenAt,
+    likeCount,
+    commentCount,
+    media,
+    extractionStatus,
+    errors,
+  };
 }
 
 // Extracts all story items for a user from embedded JSON data (e.g. reels_media).
-export function extractStorySequenceFromHtml(html: string, canonicalUrl: string, username: string): PostRecord[] {
+export function extractStorySequenceFromHtml(
+  html: string,
+  canonicalUrl: string,
+  username: string,
+): PostRecord[] {
   const records: PostRecord[] = [];
   const fetchedAt = new Date().toISOString();
 
@@ -309,15 +424,20 @@ export function extractStorySequenceFromHtml(html: string, canonicalUrl: string,
         items &&
         items.length > 0 &&
         isObj(items[0]) &&
-        (items[0].media_type !== undefined || items[0].video_versions !== undefined || items[0].image_versions2 !== undefined)
+        (items[0].media_type !== undefined ||
+          items[0].video_versions !== undefined ||
+          items[0].image_versions2 !== undefined)
       ) {
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           if (!isObj(item)) continue;
-          const shortcode = String(item.pk ?? item.id ?? `story_${i + 1}`).split("_")[0]!;
+          const shortcode = String(
+            item.pk ?? item.id ?? `story_${i + 1}`,
+          ).split("_")[0]!;
           const isVideo =
             item.media_type === 2 ||
-            (Array.isArray(item.video_versions) && item.video_versions.length > 0) ||
+            (Array.isArray(item.video_versions) &&
+              item.video_versions.length > 0) ||
             typeof item.video_url === "string";
 
           let mediaItem: MediaItem | null = null;
@@ -325,17 +445,47 @@ export function extractStorySequenceFromHtml(html: string, canonicalUrl: string,
             const videoVersions = item.video_versions;
             const video = bestCandidate(videoVersions);
             if (video) {
-              mediaItem = { index: 0, type: "video", sourceUrl: video.url, width: video.width, height: video.height, mimeType: "video/mp4", status: "pending" };
+              mediaItem = {
+                index: 0,
+                type: "video",
+                sourceUrl: video.url,
+                width: video.width,
+                height: video.height,
+                mimeType: "video/mp4",
+                status: "pending",
+              };
             } else if (typeof item.video_url === "string") {
-              mediaItem = { index: 0, type: "video", sourceUrl: item.video_url, mimeType: "video/mp4", status: "pending" };
+              mediaItem = {
+                index: 0,
+                type: "video",
+                sourceUrl: item.video_url,
+                mimeType: "video/mp4",
+                status: "pending",
+              };
             }
           } else {
-            const imgCandidates = isObj(item.image_versions2) ? item.image_versions2.candidates : undefined;
+            const imgCandidates = isObj(item.image_versions2)
+              ? item.image_versions2.candidates
+              : undefined;
             const img = bestCandidate(imgCandidates);
             if (img) {
-              mediaItem = { index: 0, type: "image", sourceUrl: img.url, width: img.width, height: img.height, mimeType: "image/jpeg", status: "pending" };
+              mediaItem = {
+                index: 0,
+                type: "image",
+                sourceUrl: img.url,
+                width: img.width,
+                height: img.height,
+                mimeType: "image/jpeg",
+                status: "pending",
+              };
             } else if (typeof item.display_url === "string") {
-              mediaItem = { index: 0, type: "image", sourceUrl: item.display_url, mimeType: "image/jpeg", status: "pending" };
+              mediaItem = {
+                index: 0,
+                type: "image",
+                sourceUrl: item.display_url,
+                mimeType: "image/jpeg",
+                status: "pending",
+              };
             }
           }
 
@@ -366,7 +516,10 @@ export function extractStorySequenceFromHtml(html: string, canonicalUrl: string,
 }
 
 // Reads profile post links from rendered DOM hrefs. Returns canonical post URLs in order.
-export function postLinksFromHrefs(hrefs: string[], origin = "https://www.instagram.com"): string[] {
+export function postLinksFromHrefs(
+  hrefs: string[],
+  origin = "https://www.instagram.com",
+): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   const re = /^\/(?:[^/]+\/)?(p|reel|tv)\/([A-Za-z0-9_-]+)\/?$/;

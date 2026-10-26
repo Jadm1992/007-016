@@ -14,8 +14,13 @@ export function useMediaSelection(
   items: readonly MediaPickerItem[],
   onSelectionChange?: (selectedItems: readonly MediaPickerItem[]) => void,
 ): MediaSelectionState {
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
-  const validIds = useMemo(() => new Set(items.map((item) => item.id)), [items]);
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const validIds = useMemo(
+    () => new Set(items.map((item) => item.id)),
+    [items],
+  );
 
   useEffect(() => {
     setSelectedIds((current) => {
@@ -28,7 +33,8 @@ export function useMediaSelection(
     () => items.filter((item) => selectedIds.has(item.id)),
     [items, selectedIds],
   );
-  const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
+  const allSelected =
+    items.length > 0 && items.every((item) => selectedIds.has(item.id));
 
   useEffect(() => {
     onSelectionChange?.(selectedItems);
@@ -45,7 +51,8 @@ export function useMediaSelection(
 
   const toggleAll = useCallback(() => {
     setSelectedIds((current) => {
-      if (items.length > 0 && items.every((item) => current.has(item.id))) return new Set();
+      if (items.length > 0 && items.every((item) => current.has(item.id)))
+        return new Set();
       return new Set(items.map((item) => item.id));
     });
   }, [items]);

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { downloadMedia } from "../src/download.ts";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp, rm } from "node:fs/promises";
+import { downloadMedia } from "../src/download.ts";
 
 describe("Live Instagram story media verification", () => {
   const liveVideoUrl =
@@ -22,7 +22,9 @@ describe("Live Instagram story media verification", () => {
       expect(res.fileName).toBe("01.mp4");
       expect(res.mimeType).toBe("video/mp4");
       expect(res.bytes).toBeGreaterThan(1000);
-      console.log(`Live video story downloaded: ${res.bytes} bytes, file=${res.fileName}, mime=${res.mimeType}`);
+      console.log(
+        `Live video story downloaded: ${res.bytes} bytes, file=${res.fileName}, mime=${res.mimeType}`,
+      );
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
@@ -39,7 +41,9 @@ describe("Live Instagram story media verification", () => {
       expect(res.fileName).toBe("01.jpg");
       expect(res.mimeType).toBe("image/jpeg");
       expect(res.bytes).toBeGreaterThan(1000);
-      console.log(`Live image story downloaded: ${res.bytes} bytes, file=${res.fileName}, mime=${res.mimeType}`);
+      console.log(
+        `Live image story downloaded: ${res.bytes} bytes, file=${res.fileName}, mime=${res.mimeType}`,
+      );
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }

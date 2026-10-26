@@ -8,9 +8,17 @@ export interface MediaSlideProps {
   onToggle: () => void;
 }
 
-export function MediaSlide({ item, index, isActive, isSelected, onToggle }: MediaSlideProps) {
+export function MediaSlide({
+  item,
+  index,
+  isActive,
+  isSelected,
+  onToggle,
+}: MediaSlideProps) {
   const number = String(index + 1).padStart(2, "0");
-  const label = item.alt?.trim() || `${item.type === "image" ? "Image" : "Video"} ${index + 1}`;
+  const label =
+    item.alt?.trim() ||
+    `${item.type === "image" ? "Image" : "Video"} ${index + 1}`;
 
   return (
     <article
@@ -29,16 +37,19 @@ export function MediaSlide({ item, index, isActive, isSelected, onToggle }: Medi
             draggable={false}
           />
         ) : (
-          <video
-            className="mp-media"
-            src={item.src}
-            poster={item.thumbnail}
-            aria-label={label}
-            controls
-            playsInline
-            preload="metadata"
-            draggable={false}
-          />
+          <>
+            {/* biome-ignore lint/a11y/useMediaCaption: source media has no caption track */}
+            <video
+              className="mp-media"
+              src={item.src}
+              poster={item.thumbnail}
+              aria-label={label}
+              controls
+              playsInline
+              preload="metadata"
+              draggable={false}
+            />
+          </>
         )}
       </div>
       <span className="mp-media-badge">
@@ -52,10 +63,24 @@ export function MediaSlide({ item, index, isActive, isSelected, onToggle }: Medi
         onClick={onToggle}
       >
         {isSelected ? (
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
-            <path d="m5 12 4.2 4.2L19 6.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="m5 12 4.2 4.2L19 6.8"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
-        ) : <span className="mp-pick-empty" aria-hidden="true" />}
+        ) : (
+          <span className="mp-pick-empty" aria-hidden="true" />
+        )}
       </button>
     </article>
   );

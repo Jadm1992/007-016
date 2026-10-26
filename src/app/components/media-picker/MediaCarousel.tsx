@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from "react";
+import { useDragCarousel } from "./hooks/useDragCarousel";
 import type { MediaPickerItem } from "./MediaPicker";
 import { MediaSlide } from "./MediaSlide";
-import { useDragCarousel } from "./hooks/useDragCarousel";
 
 export interface MediaCarouselProps {
   items: readonly MediaPickerItem[];
@@ -9,17 +9,24 @@ export interface MediaCarouselProps {
   onToggleSelection: (id: string) => void;
 }
 
-export function MediaCarousel({ items, selectedIds, onToggleSelection }: MediaCarouselProps) {
+export function MediaCarousel({
+  items,
+  selectedIds,
+  onToggleSelection,
+}: MediaCarouselProps) {
   const carousel = useDragCarousel(items.length);
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "ArrowRight") {
       event.preventDefault();
       carousel.goTo(carousel.activeIndex + 1);
     } else if (event.key === "ArrowLeft") {
       event.preventDefault();
       carousel.goTo(carousel.activeIndex - 1);
-    } else if ((event.key === " " || event.key === "Enter") && event.target === event.currentTarget) {
+    } else if (
+      (event.key === " " || event.key === "Enter") &&
+      event.target === event.currentTarget
+    ) {
       event.preventDefault();
       const item = items[carousel.activeIndex];
       if (item) onToggleSelection(item.id);
@@ -27,10 +34,10 @@ export function MediaCarousel({ items, selectedIds, onToggleSelection }: MediaCa
   };
 
   return (
-    <div
+    // biome-ignore-start lint/a11y/noNoninteractiveTabindex: carousel viewport is the keyboard target
+    <section
       ref={carousel.viewportRef}
       className={`mp-viewport ${carousel.isDragging ? "is-dragging" : ""}`}
-      role="region"
       aria-label="Media carousel. Drag horizontally or use the left and right arrow keys."
       tabIndex={0}
       onKeyDown={handleKeyDown}
@@ -41,7 +48,9 @@ export function MediaCarousel({ items, selectedIds, onToggleSelection }: MediaCa
       onLostPointerCapture={carousel.onLostPointerCapture}
     >
       {items.length === 0 ? (
-        <div className="mp-empty-state" role="status">No media available.</div>
+        <div className="mp-empty-state" role="status">
+          No media available.
+        </div>
       ) : (
         <div
           ref={carousel.trackRef}
@@ -63,10 +72,14 @@ export function MediaCarousel({ items, selectedIds, onToggleSelection }: MediaCa
       {items.length > 1 && (
         <div className="mp-pagination" aria-hidden="true">
           {items.map((item, index) => (
-            <span key={item.id} className={`mp-pagination-dot ${index === carousel.activeIndex ? "is-active" : ""}`} />
+            <span
+              key={item.id}
+              className={`mp-pagination-dot ${index === carousel.activeIndex ? "is-active" : ""}`}
+            />
           ))}
         </div>
       )}
-    </div>
+    </section>
+    // biome-ignore-end lint/a11y/noNoninteractiveTabindex: carousel viewport is the keyboard target
   );
 }

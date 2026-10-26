@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { extractPost, postLinksFromHrefs, ExtractionError } from "../src/extract.ts";
+import {
+  ExtractionError,
+  extractPost,
+  postLinksFromHrefs,
+} from "../src/extract.ts";
 
 const base = {
   canonicalUrl: "https://www.instagram.com/p/CAR123/",
@@ -48,8 +52,24 @@ describe("extractPost", () => {
     const r = extractPost({ ...base, html: page(carousel) });
     expect(r.extractionStatus).toBe("complete");
     expect(r.media).toEqual([
-      { index: 0, type: "image", sourceUrl: "https://cdn.example/big.jpg", width: 1080, height: 1350, mimeType: "image/jpeg", status: "pending" },
-      { index: 1, type: "video", sourceUrl: "https://cdn.example/clip-high.mp4", width: 720, height: 1280, mimeType: "video/mp4", status: "pending" },
+      {
+        index: 0,
+        type: "image",
+        sourceUrl: "https://cdn.example/big.jpg",
+        width: 1080,
+        height: 1350,
+        mimeType: "image/jpeg",
+        status: "pending",
+      },
+      {
+        index: 1,
+        type: "video",
+        sourceUrl: "https://cdn.example/clip-high.mp4",
+        width: 720,
+        height: 1280,
+        mimeType: "video/mp4",
+        status: "pending",
+      },
     ]);
     expect(r.caption).toBe("two items");
     expect(r.likeCount).toBe(42);
@@ -60,25 +80,48 @@ describe("extractPost", () => {
   test("extracts a single video node", () => {
     const node = {
       code: "CAR123",
-      video_versions: [{ url: "https://cdn.example/reel.mp4", width: 1080, height: 1920 }],
+      video_versions: [
+        { url: "https://cdn.example/reel.mp4", width: 1080, height: 1920 },
+      ],
     };
     const r = extractPost({ ...base, kind: "reel", html: page(node) });
     expect(r.media).toHaveLength(1);
-    expect(r.media[0]).toMatchObject({ type: "video", sourceUrl: "https://cdn.example/reel.mp4" });
+    expect(r.media[0]).toMatchObject({
+      type: "video",
+      sourceUrl: "https://cdn.example/reel.mp4",
+    });
   });
 
   test("falls back to Open Graph tags and marks the record partial", () => {
-    const r = extractPost({ ...base, html: "<html><meta property=\"og:image\" content=\"https://cdn.example/p.jpg?x=1&amp;y=2\"></html>" });
+    const r = extractPost({
+      ...base,
+      html: '<html><meta property="og:image" content="https://cdn.example/p.jpg?x=1&amp;y=2"></html>',
+    });
     expect(r.extractionStatus).toBe("partial");
     expect(r.media[0]?.sourceUrl).toBe("https://cdn.example/p.jpg?x=1&y=2");
     expect(r.errors.join(" ")).toContain("Open Graph fallback");
   });
 
   test("skips malformed carousel items and records an error for each", () => {
-    const node = { code: "CAR123", carousel_media: [null, { image_versions2: { candidates: [{ url: "https://cdn.example/ok.jpg", width: 1, height: 1 }] } }, {}] };
+    const node = {
+      code: "CAR123",
+      carousel_media: [
+        null,
+        {
+          image_versions2: {
+            candidates: [
+              { url: "https://cdn.example/ok.jpg", width: 1, height: 1 },
+            ],
+          },
+        },
+        {},
+      ],
+    };
     const r = extractPost({ ...base, html: page(node) });
     expect(r.extractionStatus).toBe("partial");
-    expect(r.media.map((m) => m.sourceUrl)).toEqual(["https://cdn.example/ok.jpg"]);
+    expect(r.media.map((m) => m.sourceUrl)).toEqual([
+      "https://cdn.example/ok.jpg",
+    ]);
     expect(r.errors).toHaveLength(2);
   });
 
@@ -89,7 +132,9 @@ describe("extractPost", () => {
   });
 
   test("throws a malformed_metadata error when no media exists", () => {
-    expect(() => extractPost({ ...base, html: "<html></html>" })).toThrow(ExtractionError);
+    expect(() => extractPost({ ...base, html: "<html></html>" })).toThrow(
+      ExtractionError,
+    );
     try {
       extractPost({ ...base, html: "<html></html>" });
     } catch (err) {
@@ -101,8 +146,20 @@ describe("extractPost", () => {
     const node = {
       code: "CAR123",
       carousel_media: [
-        { image_versions2: { candidates: [{ url: "https://cdn.example/same.jpg", width: 1, height: 1 }] } },
-        { image_versions2: { candidates: [{ url: "https://cdn.example/same.jpg", width: 1, height: 1 }] } },
+        {
+          image_versions2: {
+            candidates: [
+              { url: "https://cdn.example/same.jpg", width: 1, height: 1 },
+            ],
+          },
+        },
+        {
+          image_versions2: {
+            candidates: [
+              { url: "https://cdn.example/same.jpg", width: 1, height: 1 },
+            ],
+          },
+        },
       ],
     };
     const r = extractPost({ ...base, html: page(node) });

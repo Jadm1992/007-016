@@ -1,9 +1,15 @@
-import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { downloadMedia, extensionFor, isAcceptableMime, mediaFileName, fileMatches } from "../src/download.ts";
 import { classifyFailure } from "../src/crawler.ts";
+import {
+  downloadMedia,
+  extensionFor,
+  fileMatches,
+  isAcceptableMime,
+  mediaFileName,
+} from "../src/download.ts";
 import type { MediaItem } from "../src/types.ts";
 
 let server: ReturnType<typeof Bun.serve>;
@@ -19,18 +25,41 @@ beforeAll(async () => {
     fetch(req) {
       const p = new URL(req.url).pathname;
       hits[p] = (hits[p] ?? 0) + 1;
-      if (p === "/image.jpg") return new Response(jpeg, { headers: { "content-type": "image/jpeg" } });
-      if (p === "/video.mp4") return new Response(jpeg, { headers: { "content-type": "video/mp4" } });
-      if (p === "/html") return new Response("<html></html>", { headers: { "content-type": "text/html" } });
+      if (p === "/image.jpg")
+        return new Response(jpeg, {
+          headers: { "content-type": "image/jpeg" },
+        });
+      if (p === "/video.mp4")
+        return new Response(jpeg, { headers: { "content-type": "video/mp4" } });
+      if (p === "/html")
+        return new Response("<html></html>", {
+          headers: { "content-type": "text/html" },
+        });
       if (p === "/missing") return new Response("nope", { status: 404 });
       if (p === "/rate") return new Response("slow down", { status: 429 });
       if (p === "/flaky") {
         flaky++;
         if (flaky < 3) return new Response("oops", { status: 503 });
-        return new Response(jpeg, { headers: { "content-type": "image/jpeg" } });
+        return new Response(jpeg, {
+          headers: { "content-type": "image/jpeg" },
+        });
       }
-      if (p === "/slow") return new Promise((r) => setTimeout(() => r(new Response(jpeg, { headers: { "content-type": "image/jpeg" } })), 2000));
-      if (p === "/big") return new Response(new Uint8Array(10_000), { headers: { "content-type": "image/jpeg" } });
+      if (p === "/slow")
+        return new Promise((r) =>
+          setTimeout(
+            () =>
+              r(
+                new Response(jpeg, {
+                  headers: { "content-type": "image/jpeg" },
+                }),
+              ),
+            2000,
+          ),
+        );
+      if (p === "/big")
+        return new Response(new Uint8Array(10_000), {
+          headers: { "content-type": "image/jpeg" },
+        });
       return new Response("unknown", { status: 500 });
     },
   });
@@ -70,19 +99,31 @@ describe("downloadMedia", () => {
 
   test("rejects an unexpected content type without leaving a file", async () => {
     const dir = path.join(tmp, "post-html");
-    await expect(downloadMedia(item("image", "/html"), dir, opts)).rejects.toThrow("Unexpected content-type");
+    await expect(
+      downloadMedia(item("image", "/html"), dir, opts),
+    ).rejects.toThrow("Unexpected content-type");
     await expect(stat(path.join(dir, "01.jpg"))).rejects.toThrow();
   });
 
   test("does not retry a 404 and reports it", async () => {
     const before = hits["/missing"] ?? 0;
-    await expect(downloadMedia(item("image", "/missing"), path.join(tmp, "post-404"), opts)).rejects.toThrow("HTTP 404");
+    await expect(
+      downloadMedia(
+        item("image", "/missing"),
+        path.join(tmp, "post-404"),
+        opts,
+      ),
+    ).rejects.toThrow("HTTP 404");
     expect((hits["/missing"] ?? 0) - before).toBe(1);
   });
 
   test("retries 503 responses and succeeds on a later attempt", async () => {
     flaky = 0;
-    const r = await downloadMedia(item("image", "/flaky"), path.join(tmp, "post-flaky"), opts);
+    const r = await downloadMedia(
+      item("image", "/flaky"),
+      path.join(tmp, "post-flaky"),
+      opts,
+    );
     expect(r.bytes).toBe(jpeg.byteLength);
     expect(flaky).toBe(3);
   });
@@ -90,23 +131,35 @@ describe("downloadMedia", () => {
   test("gives up after the retry limit on a persistent 429", async () => {
     const before = hits["/rate"] ?? 0;
     await expect(
-      downloadMedia(item("image", "/rate"), path.join(tmp, "post-rate"), { ...opts, retries: 2 }),
+      downloadMedia(item("image", "/rate"), path.join(tmp, "post-rate"), {
+        ...opts,
+        retries: 2,
+      }),
     ).rejects.toThrow("429");
     expect((hits["/rate"] ?? 0) - before).toBe(3);
   });
 
   test("times out a slow response and reports a timeout", async () => {
     await expect(
-      downloadMedia(item("image", "/slow"), path.join(tmp, "post-slow"), { ...opts, retries: 0, timeoutMs: 200 }),
+      downloadMedia(item("image", "/slow"), path.join(tmp, "post-slow"), {
+        ...opts,
+        retries: 0,
+        timeoutMs: 200,
+      }),
     ).rejects.toThrow("Timed out");
   });
 
   test("refuses a response larger than the byte limit", async () => {
     await expect(
-      downloadMedia(item("image", "/big"), path.join(tmp, "post-big"), { ...opts, maxBytes: 1000 }),
+      downloadMedia(item("image", "/big"), path.join(tmp, "post-big"), {
+        ...opts,
+        maxBytes: 1000,
+      }),
     ).rejects.toThrow("exceeds limit");
     const files = await readdir(path.join(tmp, "post-big")).catch(() => []);
-    expect(files.filter((f) => f.endsWith(".part") || f.endsWith(".jpg"))).toEqual([]);
+    expect(
+      files.filter((f) => f.endsWith(".part") || f.endsWith(".jpg")),
+    ).toEqual([]);
   });
 });
 
@@ -127,11 +180,17 @@ describe("helpers", () => {
 
   test("classifyFailure maps common signals to failure kinds", () => {
     expect(classifyFailure("x", 429)).toBe("rate_limited");
-    expect(classifyFailure("Instagram challenge page detected")).toBe("challenge");
-    expect(classifyFailure("login_required: no post links")).toBe("login_required");
+    expect(classifyFailure("Instagram challenge page detected")).toBe(
+      "challenge",
+    );
+    expect(classifyFailure("login_required: no post links")).toBe(
+      "login_required",
+    );
     expect(classifyFailure("x", 404)).toBe("not_found");
     expect(classifyFailure("Timeout 60000ms exceeded")).toBe("timeout");
-    expect(classifyFailure("No media found for url")).toBe("malformed_metadata");
+    expect(classifyFailure("No media found for url")).toBe(
+      "malformed_metadata",
+    );
     expect(classifyFailure("something odd")).toBe("unknown");
   });
 });

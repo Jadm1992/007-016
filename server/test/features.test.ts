@@ -1,26 +1,45 @@
 import { describe, expect, test } from "bun:test";
-import { extractPost, extractStorySequenceFromHtml, postLinksFromHrefs, ExtractionError } from "../src/extract.ts";
-import { buildHandler, loadJob, type JobState } from "../src/api.ts";
-import { downloadMedia, detectFileSignature, DownloadError } from "../src/download.ts";
-import type { CrawlOptions } from "../src/crawler.ts";
-import path from "node:path";
-import os from "node:os";
 import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { buildHandler, type JobState, loadJob } from "../src/api.ts";
+import type { CrawlOptions } from "../src/crawler.ts";
+import {
+  DownloadError,
+  detectFileSignature,
+  downloadMedia,
+} from "../src/download.ts";
+import {
+  ExtractionError,
+  extractPost,
+  extractStorySequenceFromHtml,
+  postLinksFromHrefs,
+} from "../src/extract.ts";
 
 describe("GraphQL edge_sidecar_to_children extraction", () => {
   test("extracts multi-item carousel containing images and videos as one parent post with media[]", () => {
     const graphqlCarousel = {
       shortcode: "GQLCAR99",
       taken_at_timestamp: 1710000000,
-      edge_media_to_caption: { edges: [{ node: { text: "carousel from graphql" } }] },
+      edge_media_to_caption: {
+        edges: [{ node: { text: "carousel from graphql" } }],
+      },
       edge_sidecar_to_children: {
         edges: [
           {
             node: {
               is_video: false,
               display_resources: [
-                { src: "https://cdn.example/g_small.jpg", config_width: 300, config_height: 300 },
-                { src: "https://cdn.example/g_large.jpg", config_width: 1080, config_height: 1080 },
+                {
+                  src: "https://cdn.example/g_small.jpg",
+                  config_width: 300,
+                  config_height: 300,
+                },
+                {
+                  src: "https://cdn.example/g_large.jpg",
+                  config_width: 1080,
+                  config_height: 1080,
+                },
               ],
             },
           },
@@ -36,7 +55,9 @@ describe("GraphQL edge_sidecar_to_children extraction", () => {
     };
 
     const html = `<html><body><script type="application/json">${JSON.stringify({
-      entry_data: { PostPage: [{ graphql: { shortcode_media: graphqlCarousel } }] },
+      entry_data: {
+        PostPage: [{ graphql: { shortcode_media: graphqlCarousel } }],
+      },
     })}</script></body></html>`;
 
     const res = extractPost({
@@ -97,7 +118,11 @@ describe("Story extraction & poster substitution prevention", () => {
       ],
       image_versions2: {
         candidates: [
-          { url: "https://cdn.example/story_poster_do_not_use.jpg", width: 720, height: 1280 },
+          {
+            url: "https://cdn.example/story_poster_do_not_use.jpg",
+            width: 720,
+            height: 1280,
+          },
         ],
       },
     };
@@ -127,13 +152,19 @@ describe("Story extraction & poster substitution prevention", () => {
       is_video: true,
       image_versions2: {
         candidates: [
-          { url: "https://cdn.example/poster_only.jpg", width: 720, height: 1280 },
+          {
+            url: "https://cdn.example/poster_only.jpg",
+            width: 720,
+            height: 1280,
+          },
         ],
       },
     };
-    const html = `<html><head><meta property="og:image" content="https://cdn.example/poster_og.jpg"></head><body><script type="application/json">${JSON.stringify({
-      reels_media: [{ items: [videoWithoutUrl] }],
-    })}</script></body></html>`;
+    const html = `<html><head><meta property="og:image" content="https://cdn.example/poster_og.jpg"></head><body><script type="application/json">${JSON.stringify(
+      {
+        reels_media: [{ items: [videoWithoutUrl] }],
+      },
+    )}</script></body></html>`;
 
     expect(() =>
       extractPost({
@@ -154,7 +185,11 @@ describe("Story extraction & poster substitution prevention", () => {
       is_video: false,
       image_versions2: {
         candidates: [
-          { url: "https://cdn.example/pure_image.jpg", width: 1080, height: 1920 },
+          {
+            url: "https://cdn.example/pure_image.jpg",
+            width: 1080,
+            height: 1920,
+          },
         ],
       },
     };
@@ -186,20 +221,38 @@ describe("Story extraction & poster substitution prevention", () => {
               id: "STORY_1_123",
               pk: "STORY_1",
               media_type: 2,
-              video_versions: [{ url: "https://cdn.example/s1.mp4", width: 720, height: 1280 }],
-              image_versions2: { candidates: [{ url: "https://cdn.example/s1_poster.jpg" }] },
+              video_versions: [
+                { url: "https://cdn.example/s1.mp4", width: 720, height: 1280 },
+              ],
+              image_versions2: {
+                candidates: [{ url: "https://cdn.example/s1_poster.jpg" }],
+              },
             },
             {
               id: "STORY_2_123",
               pk: "STORY_2",
               media_type: 1,
-              image_versions2: { candidates: [{ url: "https://cdn.example/s2.jpg", width: 1080, height: 1920 }] },
+              image_versions2: {
+                candidates: [
+                  {
+                    url: "https://cdn.example/s2.jpg",
+                    width: 1080,
+                    height: 1920,
+                  },
+                ],
+              },
             },
             {
               id: "STORY_3_123",
               pk: "STORY_3",
               media_type: 2,
-              video_versions: [{ url: "https://cdn.example/s3.mp4", width: 1080, height: 1920 }],
+              video_versions: [
+                {
+                  url: "https://cdn.example/s3.mp4",
+                  width: 1080,
+                  height: 1920,
+                },
+              ],
             },
           ],
         },
@@ -207,7 +260,11 @@ describe("Story extraction & poster substitution prevention", () => {
     };
     const html = `<html><body><script type="application/json">${JSON.stringify(sequence)}</script></body></html>`;
 
-    const stories = extractStorySequenceFromHtml(html, "https://www.instagram.com/stories/bob/", "bob");
+    const stories = extractStorySequenceFromHtml(
+      html,
+      "https://www.instagram.com/stories/bob/",
+      "bob",
+    );
     expect(stories).toHaveLength(3);
 
     expect(stories[0]!.shortcode).toBe("STORY");
@@ -223,12 +280,24 @@ describe("Story extraction & poster substitution prevention", () => {
 });
 
 describe("File signature & MIME type validation during download", () => {
-  const mp4Header = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]); // '....ftypisom'
-  const jpegHeader = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+  const mp4Header = Buffer.from([
+    0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d,
+  ]); // '....ftypisom'
+  const jpegHeader = Buffer.from([
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46,
+  ]);
 
   test("detectFileSignature identifies JPEG, PNG, WebP, and MP4", () => {
-    expect(detectFileSignature(jpegHeader)).toMatchObject({ type: "image", mimeType: "image/jpeg", ext: "jpg" });
-    expect(detectFileSignature(mp4Header)).toMatchObject({ type: "video", mimeType: "video/mp4", ext: "mp4" });
+    expect(detectFileSignature(jpegHeader)).toMatchObject({
+      type: "image",
+      mimeType: "image/jpeg",
+      ext: "jpg",
+    });
+    expect(detectFileSignature(mp4Header)).toMatchObject({
+      type: "video",
+      mimeType: "video/mp4",
+      ext: "mp4",
+    });
   });
 
   test("rejects when server returns JPEG signature bytes for an expected video", async () => {
@@ -245,7 +314,12 @@ describe("File signature & MIME type validation during download", () => {
     try {
       await expect(
         downloadMedia(
-          { index: 0, type: "video", sourceUrl: server.url.href, status: "pending" },
+          {
+            index: 0,
+            type: "video",
+            sourceUrl: server.url.href,
+            status: "pending",
+          },
           tmp,
           { timeoutMs: 2000, retries: 0, maxBytes: 1024 * 1024 },
         ),
@@ -270,7 +344,12 @@ describe("File signature & MIME type validation during download", () => {
     try {
       await expect(
         downloadMedia(
-          { index: 0, type: "image", sourceUrl: server.url.href, status: "pending" },
+          {
+            index: 0,
+            type: "image",
+            sourceUrl: server.url.href,
+            status: "pending",
+          },
           tmp,
           { timeoutMs: 2000, retries: 0, maxBytes: 1024 * 1024 },
         ),
@@ -295,7 +374,12 @@ describe("File signature & MIME type validation during download", () => {
     try {
       await expect(
         downloadMedia(
-          { index: 0, type: "video", sourceUrl: server.url.href, status: "pending" },
+          {
+            index: 0,
+            type: "video",
+            sourceUrl: server.url.href,
+            status: "pending",
+          },
           tmp,
           { timeoutMs: 2000, retries: 0, maxBytes: 1024 * 1024 },
         ),
@@ -319,7 +403,12 @@ describe("File signature & MIME type validation during download", () => {
 
     try {
       const saved = await downloadMedia(
-        { index: 0, type: "video", sourceUrl: server.url.href, status: "pending" },
+        {
+          index: 0,
+          type: "video",
+          sourceUrl: server.url.href,
+          status: "pending",
+        },
         tmp,
         { timeoutMs: 2000, retries: 0, maxBytes: 1024 * 1024 },
       );
@@ -334,9 +423,27 @@ describe("File signature & MIME type validation during download", () => {
 
 describe("Profile pagination & deduplication", () => {
   test("accumulates and deduplicates posts across virtualized scroll steps", () => {
-    const batch1 = ["/p/POST01/", "/p/POST02/", "/reel/REEL03/", "/p/POST04/", "/p/POST05/"];
-    const batch2 = ["/reel/REEL03/", "/p/POST04/", "/p/POST05/", "/p/POST06/", "/p/POST07/"];
-    const batch3 = ["/p/POST06/", "/p/POST07/", "/p/POST08/", "/reel/REEL09/", "/p/POST10/"];
+    const batch1 = [
+      "/p/POST01/",
+      "/p/POST02/",
+      "/reel/REEL03/",
+      "/p/POST04/",
+      "/p/POST05/",
+    ];
+    const batch2 = [
+      "/reel/REEL03/",
+      "/p/POST04/",
+      "/p/POST05/",
+      "/p/POST06/",
+      "/p/POST07/",
+    ];
+    const batch3 = [
+      "/p/POST06/",
+      "/p/POST07/",
+      "/p/POST08/",
+      "/reel/REEL09/",
+      "/p/POST10/",
+    ];
 
     const collected: string[] = [];
     for (const batch of [batch1, batch2, batch3]) {
@@ -372,7 +479,9 @@ describe("Job progress in API", () => {
         const createRes = await fetch(`${server.url.href}jobs`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ url: "https://www.instagram.com/p/TEST_PROGRESS/" }),
+          body: JSON.stringify({
+            url: "https://www.instagram.com/p/TEST_PROGRESS/",
+          }),
         });
         expect(createRes.status).toBe(202);
         const job = (await createRes.json()) as JobState;
@@ -380,7 +489,9 @@ describe("Job progress in API", () => {
         const getRes = await fetch(`${server.url.href}jobs/${job.id}`);
         expect(getRes.status).toBe(200);
         const fetchedJob = (await getRes.json()) as JobState;
-        expect(["queued", "running", "succeeded", "failed"]).toContain(fetchedJob.status);
+        expect(["queued", "running", "succeeded", "failed"]).toContain(
+          fetchedJob.status,
+        );
       } finally {
         server.stop(true);
       }

@@ -1,20 +1,28 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 export interface DragCarouselState {
-  viewportRef: RefObject<HTMLDivElement | null>;
+  viewportRef: RefObject<HTMLElement | null>;
   trackRef: RefObject<HTMLDivElement | null>;
   activeIndex: number;
   translateX: number;
   isDragging: boolean;
   goTo: (index: number) => void;
-  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLElement>) => void;
   onLostPointerCapture: () => void;
 }
 
 export function useDragCarousel(itemCount: number): DragCarouselState {
-  const viewportRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [translateX, setTranslateX] = useState(0);
@@ -28,17 +36,25 @@ export function useDragCarousel(itemCount: number): DragCarouselState {
   const measureOffset = useCallback((index: number) => {
     const viewport = viewportRef.current;
     const track = trackRef.current;
-    const slide = track?.querySelector<HTMLElement>(`[data-carousel-index="${index}"]`);
+    const slide = track?.querySelector<HTMLElement>(
+      `[data-carousel-index="${index}"]`,
+    );
     if (!viewport || !track || !slide) return 0;
-    return viewport.clientWidth / 2 - (slide.offsetLeft + slide.offsetWidth / 2);
+    return (
+      viewport.clientWidth / 2 - (slide.offsetLeft + slide.offsetWidth / 2)
+    );
   }, []);
 
-  const goTo = useCallback((index: number) => {
-    setActiveIndex(Math.max(0, Math.min(Math.max(0, itemCount - 1), index)));
-  }, [itemCount]);
+  const goTo = useCallback(
+    (index: number) => {
+      setActiveIndex(Math.max(0, Math.min(Math.max(0, itemCount - 1), index)));
+    },
+    [itemCount],
+  );
 
   useLayoutEffect(() => {
-    if (!draggingRef.current) setTranslateX(measureOffset(activeIndex));
+    if (itemCount === 0 || draggingRef.current) return;
+    setTranslateX(measureOffset(activeIndex));
   }, [activeIndex, itemCount, measureOffset]);
 
   useEffect(() => {
@@ -49,55 +65,84 @@ export function useDragCarousel(itemCount: number): DragCarouselState {
     return () => window.removeEventListener("resize", reposition);
   }, [activeIndex, measureOffset]);
 
-  const onPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (target instanceof Element && target.closest("button, input, video, audio, a, select, textarea")) return;
-    if (event.pointerType === "mouse" && event.button !== 0) return;
+  const onPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest("button, input, video, audio, a, select, textarea")
+      )
+        return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
 
-    draggingRef.current = true;
-    movedRef.current = false;
-    startXRef.current = event.clientX;
-    startYRef.current = event.clientY;
-    startTranslateRef.current = translateX;
-    setIsDragging(true);
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  }, [translateX]);
+      draggingRef.current = true;
+      movedRef.current = false;
+      startXRef.current = event.clientX;
+      startYRef.current = event.clientY;
+      startTranslateRef.current = translateX;
+      setIsDragging(true);
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    },
+    [translateX],
+  );
 
-  const onPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerMove = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (!draggingRef.current) return;
     const deltaX = event.clientX - startXRef.current;
     const deltaY = event.clientY - startYRef.current;
-    if (Math.abs(deltaX) > 5 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) movedRef.current = true;
+    if (Math.abs(deltaX) > 5 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8)
+      movedRef.current = true;
     if (movedRef.current) setTranslateX(startTranslateRef.current + deltaX);
   }, []);
 
-  const finishDrag = useCallback((event?: ReactPointerEvent<HTMLDivElement>) => {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    setIsDragging(false);
+  const finishDrag = useCallback(
+    (event?: ReactPointerEvent<HTMLElement>) => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      setIsDragging(false);
 
-    const deltaX = event ? event.clientX - startXRef.current : 0;
-    if (!movedRef.current) {
-      setTranslateX(measureOffset(activeIndex));
-      return;
-    }
+      const deltaX = event ? event.clientX - startXRef.current : 0;
+      if (!movedRef.current) {
+        setTranslateX(measureOffset(activeIndex));
+        return;
+      }
 
-    const track = trackRef.current;
-    const firstSlide = track?.querySelector<HTMLElement>("[data-carousel-index='0']");
-    const trackStyles = track ? getComputedStyle(track) : null;
-    const stride = firstSlide && trackStyles
-      ? firstSlide.getBoundingClientRect().width + (Number.parseFloat(trackStyles.columnGap || trackStyles.gap) || 0)
-      : 1;
-    const steps = Math.max(1, Math.round(Math.abs(deltaX) / Math.max(stride, 1)));
-    if (Math.abs(deltaX) >= 36) {
-      setActiveIndex((current) => Math.max(0, Math.min(Math.max(0, itemCount - 1), current + (deltaX < 0 ? steps : -steps))));
-    } else {
-      setTranslateX(measureOffset(activeIndex));
-    }
-    movedRef.current = false;
-  }, [activeIndex, itemCount, measureOffset]);
+      const track = trackRef.current;
+      const firstSlide = track?.querySelector<HTMLElement>(
+        "[data-carousel-index='0']",
+      );
+      const trackStyles = track ? getComputedStyle(track) : null;
+      const stride =
+        firstSlide && trackStyles
+          ? firstSlide.getBoundingClientRect().width +
+            (Number.parseFloat(trackStyles.columnGap || trackStyles.gap) || 0)
+          : 1;
+      const steps = Math.max(
+        1,
+        Math.round(Math.abs(deltaX) / Math.max(stride, 1)),
+      );
+      if (Math.abs(deltaX) >= 36) {
+        setActiveIndex((current) =>
+          Math.max(
+            0,
+            Math.min(
+              Math.max(0, itemCount - 1),
+              current + (deltaX < 0 ? steps : -steps),
+            ),
+          ),
+        );
+      } else {
+        setTranslateX(measureOffset(activeIndex));
+      }
+      movedRef.current = false;
+    },
+    [activeIndex, itemCount, measureOffset],
+  );
 
-  const onPointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => finishDrag(event), [finishDrag]);
+  const onPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => finishDrag(event),
+    [finishDrag],
+  );
   const onLostPointerCapture = useCallback(() => finishDrag(), [finishDrag]);
 
   return {
