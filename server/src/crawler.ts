@@ -132,6 +132,8 @@ export async function runCrawl(opts: CrawlOptions): Promise<CrawlSummary> {
     opts.onProgress?.({ type: "failure", failure });
   };
 
+  const captured = new Map<string, string[]>();
+
   const crawler = new PlaywrightCrawler({
     requestQueue: queue,
     maxConcurrency: opts.maxConcurrency,
@@ -141,8 +143,18 @@ export async function runCrawl(opts: CrawlOptions): Promise<CrawlSummary> {
     maxRequestsPerCrawl: opts.maxPosts + 50,
     launchContext: { launchOptions: { headless: true }, userAgent: UA },
     preNavigationHooks: [
-      async ({ page }) => {
+      async ({ page, request }) => {
         if (opts.cookies?.length) await page.context().addCookies(opts.cookies);
+        if (request.userData.label !== highlightLabel) return;
+        const payloads: string[] = [];
+        captured.set(request.uniqueKey, payloads);
+        page.on("response", (response) => {
+          const url = response.url();
+          if (!/graphql|reels_media|highlight|api\/v1/i.test(url)) return;
+          void response.text().then((body) => {
+            if (body && body.length > 50) payloads.push(body);
+          }).catch(() => {});
+        });
       },
     ],
     async requestHandler({ request, page, enqueueLinks }) {
@@ -158,15 +170,8 @@ export async function runCrawl(opts: CrawlOptions): Promise<CrawlSummary> {
       if (label === highlightLabel) {
         const highlightId = root.highlightId;
         if (!highlightId) throw new Error("missing highlight id");
-        const payloads: string[] = [];
-        page.on("response", (response) => {
-          const url = response.url();
-          if (!/graphql|reels_media|highlight/i.test(url)) return;
-          void response.text().then((body) => {
-            if (body) payloads.push(body);
-          }).catch(() => {});
-        });
-        await page.waitForSelector("video, img", { timeout: 15_000 }).catch(() => {});
+        const payloads = captured.get(request.uniqueKey) ?? [];
+        await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
         const apiBody = await page.evaluate(async (id) => {
           const res = await fetch(`/api/v1/feed/reels_media/?reel_ids=highlight:${id}`, {
             headers: { "x-ig-app-id": "936619743392459" },
@@ -174,16 +179,16 @@ export async function runCrawl(opts: CrawlOptions): Promise<CrawlSummary> {
           return res && res.ok ? await res.text() : "";
         }, highlightId).catch(() => "");
         if (apiBody) payloads.push(apiBody);
-        await page.waitForTimeout(1500);
         const html = await page.content();
         const fromPayloads = extractHighlightFromPayloads(payloads, highlightId, root.canonicalUrl);
         const records = fromPayloads.length
           ? fromPayloads
           : extractHighlightFromHtml(html, highlightId, root.canonicalUrl);
         if (records.length === 0) {
-          throw Object.assign(new Error(`no highlight items found for ${highlightId}`), {
-            failureKind: "malformed_metadata",
-          });
+          throw Object.assign(
+            new Error(`no highlight items found for ${highlightId} (captured ${payloads.length} responses)`),
+            { failureKind: "malformed_metadata" },
+          );
         }
         for (const rec of records) {
           const dir = path.join(jobDir, rec.shortcode);
