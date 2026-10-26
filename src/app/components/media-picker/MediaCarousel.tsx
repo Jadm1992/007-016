@@ -62,7 +62,7 @@ export function MediaCarousel({
               data-carousel-index={index}
               aria-hidden="true"
             >
-              <div className="skeleton h-full w-full" />
+              <div className="h-full w-full animate-pulse bg-zinc-800" />
             </article>
           ))}
         </div>
