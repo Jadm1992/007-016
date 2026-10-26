@@ -7,14 +7,19 @@ export interface MediaCarouselProps {
   items: readonly MediaPickerItem[];
   selectedIds: ReadonlySet<string>;
   onToggleSelection: (id: string) => void;
+  loading?: boolean;
 }
+
+const SKELETONS = [0, 1, 2];
 
 export function MediaCarousel({
   items,
   selectedIds,
   onToggleSelection,
+  loading = false,
 }: MediaCarouselProps) {
-  const carousel = useDragCarousel(items.length);
+  const count = loading ? SKELETONS.length : items.length;
+  const carousel = useDragCarousel(count);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "ArrowRight") {
@@ -25,7 +30,8 @@ export function MediaCarousel({
       carousel.goTo(carousel.activeIndex - 1);
     } else if (
       (event.key === " " || event.key === "Enter") &&
-      event.target === event.currentTarget
+      event.target === event.currentTarget &&
+      !loading
     ) {
       event.preventDefault();
       const item = items[carousel.activeIndex];
@@ -34,11 +40,11 @@ export function MediaCarousel({
   };
 
   return (
-    // biome-ignore-start lint/a11y/noNoninteractiveTabindex: carousel viewport is the keyboard target
     <section
       ref={carousel.viewportRef}
       className={`mp-viewport ${carousel.isDragging ? "is-dragging" : ""}`}
       aria-label="Media carousel. Drag horizontally or use the left and right arrow keys."
+      aria-busy={loading || undefined}
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onPointerDown={carousel.onPointerDown}
@@ -47,7 +53,24 @@ export function MediaCarousel({
       onPointerCancel={carousel.onPointerUp}
       onLostPointerCapture={carousel.onLostPointerCapture}
     >
-      {items.length === 0 ? (
+      {loading ? (
+        <div
+          ref={carousel.trackRef}
+          className={`mp-track ${carousel.isDragging ? "is-dragging" : ""}`}
+          style={{ transform: `translate3d(${carousel.translateX}px, 0, 0)` }}
+        >
+          {SKELETONS.map((id, index) => (
+            <article
+              key={id}
+              className={`mp-slide ${index === carousel.activeIndex ? "is-active" : ""}`}
+              data-carousel-index={index}
+              aria-hidden="true"
+            >
+              <div className="skeleton h-full w-full" />
+            </article>
+          ))}
+        </div>
+      ) : items.length === 0 ? (
         <div className="mp-empty-state" role="status">
           No media available.
         </div>
@@ -69,7 +92,7 @@ export function MediaCarousel({
           ))}
         </div>
       )}
-      {items.length > 1 && (
+      {!loading && items.length > 1 && (
         <div className="mp-pagination" aria-hidden="true">
           {items.map((item, index) => (
             <span
@@ -80,6 +103,5 @@ export function MediaCarousel({
         </div>
       )}
     </section>
-    // biome-ignore-end lint/a11y/noNoninteractiveTabindex: carousel viewport is the keyboard target
   );
 }
