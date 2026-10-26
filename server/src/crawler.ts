@@ -5,6 +5,7 @@ import { downloadMedia, fileMatches, UA } from "./download.ts";
 import {
   ExtractionError,
   extractHighlightFromHtml,
+  extractHighlightFromPayloads,
   extractPost,
   extractStorySequenceFromHtml,
   postLinksFromHrefs,
@@ -157,9 +158,28 @@ export async function runCrawl(opts: CrawlOptions): Promise<CrawlSummary> {
       if (label === highlightLabel) {
         const highlightId = root.highlightId;
         if (!highlightId) throw new Error("missing highlight id");
+        const payloads: string[] = [];
+        page.on("response", (response) => {
+          const url = response.url();
+          if (!/graphql|reels_media|highlight/i.test(url)) return;
+          void response.text().then((body) => {
+            if (body) payloads.push(body);
+          }).catch(() => {});
+        });
         await page.waitForSelector("video, img", { timeout: 15_000 }).catch(() => {});
+        const apiBody = await page.evaluate(async (id) => {
+          const res = await fetch(`/api/v1/feed/reels_media/?reel_ids=highlight:${id}`, {
+            headers: { "x-ig-app-id": "936619743392459" },
+          }).catch(() => null);
+          return res && res.ok ? await res.text() : "";
+        }, highlightId).catch(() => "");
+        if (apiBody) payloads.push(apiBody);
+        await page.waitForTimeout(1500);
         const html = await page.content();
-        const records = extractHighlightFromHtml(html, highlightId, root.canonicalUrl);
+        const records =
+          extractHighlightFromPayloads(payloads, highlightId, root.canonicalUrl).length > 0
+            ? extractHighlightFromPayloads(payloads, highlightId, root.canonicalUrl)
+            : extractHighlightFromHtml(html, highlightId, root.canonicalUrl);
         if (records.length === 0) {
           throw Object.assign(new Error(`no highlight items found for ${highlightId}`), {
             failureKind: "malformed_metadata",
