@@ -1,3 +1,2 @@
 @import "tailwindcss" source(none);
-@plugin "daisyui";
 @source "../**/*.{js,ts,jsx,tsx}";
