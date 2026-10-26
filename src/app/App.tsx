@@ -38,7 +38,6 @@ export default function App() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState("");
   const [items, setItems] = useState<MediaPickerItem[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -53,7 +52,6 @@ export default function App() {
   function reset() {
     setInput("");
     setError("");
-    setProgress(0);
     setProgressMsg("");
     setItems([]);
     setPickerOpen(false);
@@ -71,10 +69,9 @@ export default function App() {
 
     setError("");
     setBusy(true);
-    setProgress(10);
     setProgressMsg("Starting…");
     setItems([]);
-    setPickerOpen(false);
+    setPickerOpen(true);
 
     try {
       const res = await fetch("/jobs", {
@@ -88,12 +85,8 @@ export default function App() {
       const poll = async () => {
         const statusRes = await fetch(`/jobs/${job.id}`);
         const status = (await statusRes.json()) as Job;
-        if (status.progress?.message) {
-          setProgressMsg(status.progress.message);
-          setProgress((p) => Math.min(85, p + 10));
-        }
+        if (status.progress?.message) setProgressMsg(status.progress.message);
         if (status.status === "succeeded") {
-          setProgress(100);
           const posts = (await fetch(`/jobs/${job.id}/posts`).then((r) =>
             r.json(),
           )) as PostRecord[];
@@ -117,8 +110,10 @@ export default function App() {
           }
           setItems(gallery);
           setBusy(false);
-          if (!gallery.length) setError("Job finished but no media was saved.");
-          else setPickerOpen(true);
+          if (!gallery.length) {
+            setPickerOpen(false);
+            setError("Job finished but no media was saved.");
+          }
           return;
         }
         if (status.status === "failed") {
@@ -130,6 +125,7 @@ export default function App() {
     } catch (err) {
       setError((err as Error).message || "Error");
       setBusy(false);
+      setPickerOpen(false);
     }
   }
 
@@ -267,38 +263,7 @@ export default function App() {
             </div>
           )}
 
-          {busy && (
-            <div className="flex flex-col gap-2 py-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">
-                  {progressMsg || "Extracting media…"}
-                </span>
-                <span
-                  style={{
-                    color: "var(--primary)",
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}
-                >
-                  {progress}%
-                </span>
-              </div>
-              <div
-                className="w-full h-2 rounded-full overflow-hidden"
-                style={{ background: "var(--muted)" }}
-              >
-                <div
-                  className="h-full rounded-full transition-all duration-300"
-                  style={{
-                    width: `${progress}%`,
-                    background:
-                      "linear-gradient(90deg, var(--primary), var(--accent))",
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {items.length > 0 && (
+          {(busy || items.length > 0) && (
             <div
               className="mt-4 pt-4 border-t flex items-center justify-between gap-3"
               style={{ borderColor: "var(--border)" }}
@@ -306,8 +271,10 @@ export default function App() {
               <MediaPicker
                 items={items}
                 title="Choose your media"
-                triggerLabel="Browse media"
                 open={pickerOpen}
+                loading={busy}
+                status={progressMsg}
+                hideTrigger
                 onOpenChange={setPickerOpen}
               />
               <button
