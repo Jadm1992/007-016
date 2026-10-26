@@ -6,29 +6,25 @@ import { MediaPickerFooter } from "./MediaPickerFooter";
 import "./media-picker.css";
 
 export interface MediaPickerItem {
-  /** Stable key used for selection. */
   id: string;
   type: "image" | "video";
-  /** URL of the original image or video. */
   src: string;
-  /** Optional video poster or lower-resolution image preview. */
   thumbnail?: string;
   alt?: string;
-  /** Optional filename used when the built-in download handler is used. */
   fileName?: string;
 }
 
 export interface MediaPickerProps {
-  /** Real media URLs to display. An empty array renders an empty state, not placeholder media. */
   items: readonly MediaPickerItem[];
   title?: string;
   triggerLabel?: string;
-  /** Supply `open` to control the dialog externally. */
   open?: boolean;
   defaultOpen?: boolean;
+  loading?: boolean;
+  status?: string;
+  hideTrigger?: boolean;
   onOpenChange?: (open: boolean) => void;
   onSelectionChange?: (selectedItems: readonly MediaPickerItem[]) => void;
-  /** Override the built-in URL download behavior (for example, to create a ZIP). */
   onDownload?: (
     selectedItems: readonly MediaPickerItem[],
   ) => void | Promise<void>;
@@ -57,7 +53,6 @@ function defaultFileName(item: MediaPickerItem, index: number): string {
 async function downloadFromUrls(
   items: readonly MediaPickerItem[],
 ): Promise<void> {
-  // Fetch to blobs so cross-origin URLs without download support do not navigate away from the page.
   const files = await Promise.all(
     items.map(async (item, index) => {
       const response = await fetch(item.src);
@@ -92,6 +87,9 @@ export function MediaPicker({
   triggerLabel = "Browse media",
   open: controlledOpen,
   defaultOpen = false,
+  loading = false,
+  status,
+  hideTrigger = false,
   onOpenChange,
   onSelectionChange,
   onDownload,
@@ -139,30 +137,32 @@ export function MediaPicker({
 
   return (
     <div className="mp-root">
-      <button
-        ref={triggerRef}
-        className="mp-trigger inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition"
-        type="button"
-        aria-haspopup="dialog"
-        aria-expanded={isOpen}
-        onClick={() => setOpen(true)}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          fill="none"
-          aria-hidden="true"
+      {!hideTrigger && (
+        <button
+          ref={triggerRef}
+          className="mp-trigger inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition"
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+          onClick={() => setOpen(true)}
         >
-          <path
-            d="M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.7 1.7M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.7-1.7"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-          />
-        </svg>
-        {triggerLabel}
-      </button>
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.7 1.7M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.7-1.7"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            />
+          </svg>
+          {triggerLabel}
+        </button>
+      )}
 
       <MediaPickerDialog
         open={isOpen}
@@ -204,11 +204,9 @@ export function MediaPicker({
                 {title}
               </h2>
               <p className="mp-subtitle">
-                {items.length} {items.length === 1 ? "item" : "items"}
-                <span aria-hidden="true"> · </span>
-                {imageCount} {imageCount === 1 ? "image" : "images"}
-                <span aria-hidden="true"> · </span>
-                {videoCount} {videoCount === 1 ? "video" : "videos"}
+                {loading
+                  ? status || "Extracting media…"
+                  : `${items.length} ${items.length === 1 ? "item" : "items"} · ${imageCount} ${imageCount === 1 ? "image" : "images"} · ${videoCount} ${videoCount === 1 ? "video" : "videos"}`}
               </p>
             </div>
           </div>
@@ -218,7 +216,7 @@ export function MediaPicker({
               type="button"
               aria-pressed={selection.allSelected}
               onClick={selection.toggleAll}
-              disabled={items.length === 0}
+              disabled={items.length === 0 || loading}
             >
               <span aria-hidden="true">{selection.allSelected ? "✓" : ""}</span>
               {selection.allSelected ? "Deselect all" : "Select all"}
@@ -253,24 +251,12 @@ export function MediaPicker({
             items={items}
             selectedIds={selection.selectedIds}
             onToggleSelection={selection.toggle}
+            loading={loading}
           />
           <p className="mp-swipe-hint">
-            <svg
-              viewBox="0 0 24 24"
-              width="17"
-              height="17"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M8 12V5.8a1.5 1.5 0 0 1 3 0V11 4.8a1.5 1.5 0 0 1 3 0V11 6.8a1.5 1.5 0 0 1 3 0v7.5l1.1-1.3a1.7 1.7 0 0 1 2.7 2.1l-3.5 5a3 3 0 0 1-2.5 1.3h-3.2a4 4 0 0 1-3.3-1.7L5.7 16a1.7 1.7 0 0 1 2.3-2.4L10 15"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Drag or swipe horizontally to browse
+            {loading
+              ? "Loading media…"
+              : "Drag or swipe horizontally to browse"}
           </p>
           {downloadError && (
             <p className="mp-error" role="alert">
@@ -283,7 +269,7 @@ export function MediaPicker({
           selectedCount={selection.selectedItems.length}
           totalCount={items.length}
           allSelected={selection.allSelected}
-          disabled={isDownloading}
+          disabled={isDownloading || loading}
           onToggleAll={selection.toggleAll}
           onDownload={handleDownload}
         />
