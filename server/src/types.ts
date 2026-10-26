@@ -19,7 +19,7 @@ export type ExtractionStatus = "complete" | "partial" | "failed";
 export type PostRecord = {
   canonicalUrl: string;
   shortcode: string;
-  kind: "post" | "reel" | "tv" | "story";
+  kind: "post" | "reel" | "tv" | "story" | "highlight";
   username?: string;
   caption?: string | null;
   takenAt?: string | null;
