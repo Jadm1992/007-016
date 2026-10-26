@@ -2,10 +2,11 @@
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd server && bun run src/api.ts &
+    root="$(pwd)"
+    (cd "$root/server" && bun run src/api.ts) &
     api_pid=$!
     trap 'kill $api_pid 2>/dev/null || true' EXIT
-    cd ..
+    cd "$root"
     bun run dev
 
 # Start only the API
