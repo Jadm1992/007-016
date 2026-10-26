@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   ExtractionError,
+  extractHighlightFromHtml,
   extractPost,
   postLinksFromHrefs,
 } from "../src/extract.ts";
@@ -12,10 +13,9 @@ const base = {
   username: "alice",
 };
 
-// Embedded page JSON shaped like Instagram's media nodes.
 function page(node: unknown, extraScripts = ""): string {
   return `<html><head>
-<meta property="og:image" content="https://cdn.example/fallback.jpg?a=1&amp;b=2">
+<meta property="og:image" content="https://cdn.example/fallback.jpg?a=1&b=2">
 <meta property="og:description" content="fallback caption">
 </head><body>
 <script type="application/json" data-sjs>${JSON.stringify({ require: [["x", { items: [node] }]] })}</script>
@@ -95,7 +95,7 @@ describe("extractPost", () => {
   test("falls back to Open Graph tags and marks the record partial", () => {
     const r = extractPost({
       ...base,
-      html: '<html><meta property="og:image" content="https://cdn.example/p.jpg?x=1&amp;y=2"></html>',
+      html: '<html><meta property="og:image" content="https://cdn.example/p.jpg?x=1&y=2"></html>',
     });
     expect(r.extractionStatus).toBe("partial");
     expect(r.media[0]?.sourceUrl).toBe("https://cdn.example/p.jpg?x=1&y=2");
@@ -164,6 +164,49 @@ describe("extractPost", () => {
     };
     const r = extractPost({ ...base, html: page(node) });
     expect(r.media).toHaveLength(1);
+  });
+});
+
+describe("extractHighlightFromHtml", () => {
+  test("reads every item from the matching highlight", () => {
+    const highlight = {
+      id: "highlight:1811087760130222",
+      items: [
+        {
+          pk: "111",
+          image_versions2: {
+            candidates: [
+              { url: "https://cdn.example/h-small.jpg", width: 150, height: 150 },
+              { url: "https://cdn.example/h-big.jpg", width: 1080, height: 1920 },
+            ],
+          },
+        },
+        {
+          pk: "222",
+          video_versions: [
+            { url: "https://cdn.example/h-low.mp4", width: 360, height: 640 },
+            { url: "https://cdn.example/h-high.mp4", width: 720, height: 1280 },
+          ],
+        },
+      ],
+    };
+    const html = `<html><body><script type="application/json">${JSON.stringify({ highlight })}</script></body></html>`;
+    const records = extractHighlightFromHtml(
+      html,
+      "1811087760130222",
+      "https://www.instagram.com/stories/highlights/1811087760130222/",
+    );
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({
+      kind: "highlight",
+      shortcode: "111",
+      media: [{ type: "image", sourceUrl: "https://cdn.example/h-big.jpg" }],
+    });
+    expect(records[1]).toMatchObject({
+      kind: "highlight",
+      shortcode: "222",
+      media: [{ type: "video", sourceUrl: "https://cdn.example/h-high.mp4" }],
+    });
   });
 });
 
