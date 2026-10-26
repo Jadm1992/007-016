@@ -1,7 +1,5 @@
 import type { FailureKind, MediaItem, PostRecord } from "./types.ts";
 
-// A platform adapter turns raw page content into post records. Adapters are
-// selected by platform so new platforms can be added without touching the engine.
 export type ExtractionInput = {
   html: string;
   canonicalUrl: string;
@@ -22,12 +20,12 @@ export class ExtractionError extends Error {
 
 export function decodeHtml(s: string): string {
   return s
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
+    .replace(/&/g, "&")
+    .replace(/"/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#x27;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+    .replace(/</g, "<")
+    .replace(/>/g, ">");
 }
 
 export function metaContent(
@@ -42,7 +40,6 @@ export function metaContent(
   return content === undefined ? null : decodeHtml(content);
 }
 
-// Returns every JSON-LD object found in the page. Malformed blocks are skipped and reported.
 export function jsonLdBlocks(
   html: string,
 ): { value: unknown; malformed: boolean }[] {
@@ -59,7 +56,6 @@ export function jsonLdBlocks(
   return out;
 }
 
-// Instagram embeds media nodes in its page JSON. These helpers read the common shapes.
 type AnyObj = Record<string, unknown>;
 const isObj = (v: unknown): v is AnyObj =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -83,7 +79,6 @@ function bestCandidate(
   return best;
 }
 
-// Converts one Instagram media node (as used by carousel_media and single media) into MediaItems.
 export function mediaFromNode(node: AnyObj, index: number): MediaItem | null {
   const isVideo =
     node.is_video === true ||
@@ -93,8 +88,7 @@ export function mediaFromNode(node: AnyObj, index: number): MediaItem | null {
     typeof node.video_duration === "number";
 
   if (isVideo) {
-    const videoVersions = node.video_versions;
-    const video = bestCandidate(videoVersions);
+    const video = bestCandidate(node.video_versions);
     if (video) {
       return {
         index,
@@ -115,7 +109,6 @@ export function mediaFromNode(node: AnyObj, index: number): MediaItem | null {
         status: "pending",
       };
     }
-    // A video node must never substitute its poster image as an image item.
     return null;
   }
 
@@ -165,8 +158,6 @@ export function mediaFromNode(node: AnyObj, index: number): MediaItem | null {
   return null;
 }
 
-// Finds the media node that matches the shortcode inside Instagram's embedded JSON
-// (script type="application/json" blocks). Returns the matching node or null.
 export function findShortcodeNode(
   root: unknown,
   shortcode: string,
@@ -187,7 +178,6 @@ export function findShortcodeNode(
       String(cur.id ?? "") === shortcode ||
       String(cur.pk ?? "") === shortcode ||
       (typeof cur.id === "string" && cur.id.startsWith(`${shortcode}_`));
-
     if (matchesCode) {
       if (
         cur.video_versions !== undefined ||
@@ -216,13 +206,14 @@ function parseEmbeddedJson(html: string): unknown[] {
       !body.includes('"pk"') &&
       !body.includes('"video_versions"') &&
       !body.includes('"image_versions2"') &&
-      !body.includes('"edge_sidecar_to_children"')
+      !body.includes('"edge_sidecar_to_children"') &&
+      !body.includes("highlight")
     )
       continue;
     try {
       out.push(JSON.parse(body));
     } catch {
-      // Malformed embedded blocks are skipped; the caller reports the absence of metadata.
+      // Malformed embedded blocks are skipped.
     }
   }
   return out;
@@ -243,7 +234,6 @@ function takenAtFrom(node: AnyObj): string | null {
   return ts === null ? null : new Date(ts * 1000).toISOString();
 }
 
-// Extracts a post or reel. Priority: embedded media node, then Open Graph/JSON-LD fallbacks.
 export function extractPost(input: ExtractionInput): PostRecord {
   const errors: string[] = [];
   const fetchedAt = new Date().toISOString();
@@ -304,7 +294,6 @@ export function extractPost(input: ExtractionInput): PostRecord {
     input.kind === "reel";
 
   if (media.length === 0) {
-    // Fallback: Open Graph tags describe the first media item only.
     const ogVideo = metaContent(input.html, "property", "og:video");
     const ogImage = metaContent(input.html, "property", "og:image");
     if (ogVideo) {
@@ -331,7 +320,6 @@ export function extractPost(input: ExtractionInput): PostRecord {
   }
 
   if (media.length === 0) {
-    // DOM fallback for live rendered elements (e.g., stories or dynamically injected tags)
     const domVideo =
       input.html.match(/<video[^>]*src="([^"]+)"[^>]*>/i)?.[1] ??
       input.html.match(
@@ -384,7 +372,6 @@ export function extractPost(input: ExtractionInput): PostRecord {
   for (const m of media) if (!dedup.has(m.sourceUrl)) dedup.set(m.sourceUrl, m);
   media = [...dedup.values()].map((m, i) => ({ ...m, index: i }));
 
-  const extractionStatus = errors.length ? "partial" : "complete";
   return {
     ...base,
     caption,
@@ -392,12 +379,11 @@ export function extractPost(input: ExtractionInput): PostRecord {
     likeCount,
     commentCount,
     media,
-    extractionStatus,
+    extractionStatus: errors.length ? "partial" : "complete",
     errors,
   };
 }
 
-// Extracts all story items for a user from embedded JSON data (e.g. reels_media).
 export function extractStorySequenceFromHtml(
   html: string,
   canonicalUrl: string,
@@ -417,8 +403,6 @@ export function extractStorySequenceFromHtml(
         continue;
       }
       if (!isObj(cur)) continue;
-
-      // Look for reels_media / items array
       const items = Array.isArray(cur.items) ? cur.items : undefined;
       if (
         items &&
@@ -431,64 +415,8 @@ export function extractStorySequenceFromHtml(
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           if (!isObj(item)) continue;
-          const shortcode = String(
-            item.pk ?? item.id ?? `story_${i + 1}`,
-          ).split("_")[0]!;
-          const isVideo =
-            item.media_type === 2 ||
-            (Array.isArray(item.video_versions) &&
-              item.video_versions.length > 0) ||
-            typeof item.video_url === "string";
-
-          let mediaItem: MediaItem | null = null;
-          if (isVideo) {
-            const videoVersions = item.video_versions;
-            const video = bestCandidate(videoVersions);
-            if (video) {
-              mediaItem = {
-                index: 0,
-                type: "video",
-                sourceUrl: video.url,
-                width: video.width,
-                height: video.height,
-                mimeType: "video/mp4",
-                status: "pending",
-              };
-            } else if (typeof item.video_url === "string") {
-              mediaItem = {
-                index: 0,
-                type: "video",
-                sourceUrl: item.video_url,
-                mimeType: "video/mp4",
-                status: "pending",
-              };
-            }
-          } else {
-            const imgCandidates = isObj(item.image_versions2)
-              ? item.image_versions2.candidates
-              : undefined;
-            const img = bestCandidate(imgCandidates);
-            if (img) {
-              mediaItem = {
-                index: 0,
-                type: "image",
-                sourceUrl: img.url,
-                width: img.width,
-                height: img.height,
-                mimeType: "image/jpeg",
-                status: "pending",
-              };
-            } else if (typeof item.display_url === "string") {
-              mediaItem = {
-                index: 0,
-                type: "image",
-                sourceUrl: item.display_url,
-                mimeType: "image/jpeg",
-                status: "pending",
-              };
-            }
-          }
-
+          const shortcode = String(item.pk ?? item.id ?? `story_${i + 1}`).split("_")[0]!;
+          const mediaItem = mediaFromNode(item, 0);
           if (mediaItem) {
             records.push({
               canonicalUrl: `https://www.instagram.com/stories/${username}/${shortcode}/`,
@@ -511,11 +439,82 @@ export function extractStorySequenceFromHtml(
       for (const v of Object.values(cur)) stack.push(v);
     }
   }
-
   return records;
 }
 
-// Reads profile post links from rendered DOM hrefs. Returns canonical post URLs in order.
+function matchesHighlight(node: AnyObj, highlightId: string): boolean {
+  const id = String(node.id ?? node.pk ?? node.highlight_id ?? "");
+  return (
+    id === highlightId ||
+    id === `highlight:${highlightId}` ||
+    id.endsWith(`:${highlightId}`) ||
+    id.includes(highlightId)
+  );
+}
+
+function itemsOf(node: AnyObj): AnyObj[] | null {
+  const raw = node.items ?? node.media_items ?? node.reel_items;
+  if (!Array.isArray(raw)) return null;
+  return raw.filter(isObj);
+}
+
+// Reads a highlight's own item list. Does not use the story extractor.
+export function extractHighlightFromHtml(
+  html: string,
+  highlightId: string,
+  canonicalUrl: string,
+): PostRecord[] {
+  const fetchedAt = new Date().toISOString();
+  let items: AnyObj[] | null = null;
+
+  for (const root of parseEmbeddedJson(html)) {
+    const stack: unknown[] = [root];
+    let seen = 0;
+    while (stack.length && seen < 200_000) {
+      const cur = stack.pop();
+      seen++;
+      if (Array.isArray(cur)) {
+        for (const v of cur) stack.push(v);
+        continue;
+      }
+      if (!isObj(cur)) continue;
+      if (matchesHighlight(cur, highlightId)) {
+        const found = itemsOf(cur);
+        if (found && found.length) {
+          items = found;
+          break;
+        }
+      }
+      for (const v of Object.values(cur)) stack.push(v);
+    }
+    if (items) break;
+  }
+
+  if (!items) return [];
+
+  const records: PostRecord[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!;
+    const mediaItem = mediaFromNode(item, 0);
+    if (!mediaItem) continue;
+    const shortcode = String(item.pk ?? item.id ?? `${highlightId}_${i + 1}`).split("_")[0]!;
+    records.push({
+      canonicalUrl,
+      shortcode,
+      kind: "highlight",
+      caption: captionFrom(item),
+      takenAt: takenAtFrom(item),
+      likeCount: numberOrNull(item.like_count),
+      commentCount: numberOrNull(item.comment_count),
+      media: [mediaItem],
+      extractionStatus: "complete",
+      errors: [],
+      fetchedAt,
+    });
+  }
+  return records;
+}
+
 export function postLinksFromHrefs(
   hrefs: string[],
   origin = "https://www.instagram.com",
