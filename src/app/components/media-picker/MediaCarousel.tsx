@@ -28,11 +28,7 @@ export function MediaCarousel({
     } else if (event.key === "ArrowLeft") {
       event.preventDefault();
       carousel.goTo(carousel.activeIndex - 1);
-    } else if (
-      (event.key === " " || event.key === "Enter") &&
-      event.target === event.currentTarget &&
-      !loading
-    ) {
+    } else if ((event.key === " " || event.key === "Enter") && event.target === event.currentTarget && !loading) {
       event.preventDefault();
       const item = items[carousel.activeIndex];
       if (item) onToggleSelection(item.id);
@@ -42,7 +38,7 @@ export function MediaCarousel({
   return (
     <section
       ref={carousel.viewportRef}
-      className={`mp-viewport ${carousel.isDragging ? "is-dragging" : ""}`}
+      className={`relative overflow-hidden rounded-2xl touch-pan-y select-none ${carousel.isDragging ? "cursor-grabbing" : "cursor-grab"}`}
       aria-label="Media carousel. Drag horizontally or use the left and right arrow keys."
       aria-busy={loading || undefined}
       tabIndex={0}
@@ -56,13 +52,13 @@ export function MediaCarousel({
       {loading ? (
         <div
           ref={carousel.trackRef}
-          className={`mp-track ${carousel.isDragging ? "is-dragging" : ""}`}
+          className={`flex w-max min-w-full items-center gap-4 ${carousel.isDragging ? "" : "transition-transform duration-300"}`}
           style={{ transform: `translate3d(${carousel.translateX}px, 0, 0)` }}
         >
           {SKELETONS.map((id, index) => (
             <article
               key={id}
-              className={`mp-slide ${index === carousel.activeIndex ? "is-active" : ""}`}
+              className={`shrink-0 w-[min(76vw,610px)] aspect-[1.55/1] overflow-hidden rounded-2xl border ${index === carousel.activeIndex ? "border-violet-400/70" : "border-white/10 opacity-40"}`}
               data-carousel-index={index}
               aria-hidden="true"
             >
@@ -71,13 +67,13 @@ export function MediaCarousel({
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="mp-empty-state" role="status">
+        <div className="grid min-h-56 place-items-center rounded-2xl border border-dashed border-violet-300/20 p-6 text-sm text-zinc-400" role="status">
           No media available.
         </div>
       ) : (
         <div
           ref={carousel.trackRef}
-          className={`mp-track ${carousel.isDragging ? "is-dragging" : ""}`}
+          className={`flex w-max min-w-full items-center gap-4 ${carousel.isDragging ? "" : "transition-transform duration-300"}`}
           style={{ transform: `translate3d(${carousel.translateX}px, 0, 0)` }}
         >
           {items.map((item, index) => (
@@ -93,11 +89,11 @@ export function MediaCarousel({
         </div>
       )}
       {!loading && items.length > 1 && (
-        <div className="mp-pagination" aria-hidden="true">
+        <div className="mt-4 flex items-center justify-center gap-2" aria-hidden="true">
           {items.map((item, index) => (
             <span
               key={item.id}
-              className={`mp-pagination-dot ${index === carousel.activeIndex ? "is-active" : ""}`}
+              className={`h-1.5 rounded-full transition-all ${index === carousel.activeIndex ? "w-5 bg-violet-400" : "w-1.5 bg-zinc-600"}`}
             />
           ))}
         </div>
