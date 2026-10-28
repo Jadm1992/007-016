@@ -571,3 +571,111 @@ export function postLinksFromHrefs(
   }
   return out;
 }
+
+/**
+ * Extracts PostRecord from Instagram's mobile API response:
+ * GET https://i.instagram.com/api/v1/media/{media_id}/info/
+ */
+export function extractPostFromMediaInfo(
+  payload: unknown,
+  canonicalUrl: string,
+  shortcode: string,
+  username?: string,
+): PostRecord {
+  if (!isObj(payload)) {
+    throw new ExtractionError("Invalid API response format", "malformed_metadata");
+  }
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  if (items.length === 0 || !isObj(items[0])) {
+    throw new ExtractionError("No media items in API response", "malformed_metadata");
+  }
+  const node = items[0] as AnyObj;
+  const errors: string[] = [];
+  const fetchedAt = new Date().toISOString();
+  const owner =
+    username ??
+    (isObj(node.user) && typeof node.user.username === "string"
+      ? node.user.username
+      : undefined);
+
+  let media: MediaItem[] = [];
+  const carousel =
+    node.carousel_media ??
+    (isObj(node.edge_sidecar_to_children) &&
+    Array.isArray(node.edge_sidecar_to_children.edges)
+      ? node.edge_sidecar_to_children.edges.map((e: unknown) =>
+          isObj(e) && isObj(e.node) ? e.node : e,
+        )
+      : undefined);
+
+  if (Array.isArray(carousel)) {
+    carousel.forEach((child, i) => {
+      if (!isObj(child)) {
+        errors.push(`carousel item ${i} is malformed`);
+        return;
+      }
+      const item = mediaFromNode(child, i);
+      if (item) media.push(item);
+      else errors.push(`carousel item ${i} has no media URL`);
+    });
+  } else {
+    const item = mediaFromNode(node, 0);
+    if (item) media.push(item);
+  }
+
+  if (media.length === 0) {
+    throw new ExtractionError(
+      `No downloadable media found in API response for ${shortcode}`,
+      "malformed_metadata",
+    );
+  }
+
+  return {
+    canonicalUrl,
+    shortcode,
+    kind: node.media_type === 2 || node.is_video === true ? "reel" : "post",
+    username: owner,
+    fetchedAt,
+    caption: captionFrom(node),
+    takenAt: takenAtFrom(node),
+    likeCount: numberOrNull(node.like_count),
+    commentCount: numberOrNull(node.comment_count),
+    media,
+    extractionStatus: "complete",
+    errors,
+  };
+}
+
+/**
+ * Extracts PostRecord from Snabrix cloud gateway response or intercepted media.snabrix.com URL.
+ */
+export function extractFromSnabrixPayload(
+  text: string,
+  canonicalUrl: string,
+  shortcode: string,
+  username?: string,
+): PostRecord | null {
+  const m = text.match(/(https:\/\/media\.snabrix\.com\/get\?[^"'\s<>]+)/);
+  if (m && m[1]) {
+    const relayUrl = m[1].replace(/&amp;/g, "&");
+    return {
+      canonicalUrl,
+      shortcode,
+      kind: "reel",
+      username,
+      fetchedAt: new Date().toISOString(),
+      media: [
+        {
+          index: 0,
+          type: "video",
+          sourceUrl: relayUrl,
+          mimeType: "video/mp4",
+          status: "pending",
+        },
+      ],
+      extractionStatus: "complete",
+      errors: ["resolved via Snabrix relay gateway"],
+    };
+  }
+  return null;
+}

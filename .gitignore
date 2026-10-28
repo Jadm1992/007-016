@@ -1,0 +1,14 @@
+network-logs/
+PREWALK.md
+node_modules/
+.serena/
+.omp/
+notes/
+downloads/
+storage/
+scripts/
+*.png
+*.jpg
+*.jpeg
+*.img
+*.mp4

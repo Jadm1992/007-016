@@ -27,6 +27,8 @@ export interface MediaPickerProps {
   onDownload?: (
     selectedItems: readonly MediaPickerItem[],
   ) => void | Promise<void>;
+  onNewDownload?: () => void;
+  onClose?: () => void;
 }
 
 function defaultFileName(item: MediaPickerItem, index: number): string {
@@ -77,6 +79,8 @@ export function MediaPicker({
   onOpenChange,
   onSelectionChange,
   onDownload,
+  onNewDownload,
+  onClose,
 }: MediaPickerProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
@@ -95,7 +99,10 @@ export function MediaPicker({
     [isControlled, onOpenChange],
   );
 
-  const handleClose = useCallback(() => setOpen(false), [setOpen]);
+  const handleClose = useCallback(() => {
+    setOpen(false);
+    onClose?.();
+  }, [setOpen, onClose]);
   const selection = useMediaSelection(items, onSelectionChange);
   const imageCount = items.filter((item) => item.type === "image").length;
   const videoCount = items.length - imageCount;
@@ -130,7 +137,7 @@ export function MediaPicker({
       )}
 
       <MediaPickerDialog open={isOpen} title={title} titleId={titleId} onClose={handleClose}>
-        <header className="flex items-center justify-between gap-4 border-b border-white/10 px-6 py-4">
+        <header className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4">
           <div className="min-w-0">
             <h2 className="truncate text-[17px] font-semibold text-white" id={titleId}>{title}</h2>
             <p className="mt-1 text-xs text-zinc-400">
@@ -150,11 +157,11 @@ export function MediaPicker({
               {selection.allSelected ? "Deselect all" : "Select all"}
             </button>
             <button
-              className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-zinc-300"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors"
               type="button"
               data-dialog-close="true"
               aria-label="Close media picker"
-              onClick={() => setOpen(false)}
+              onClick={handleClose}
             >
               <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
                 <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -163,7 +170,7 @@ export function MediaPicker({
           </div>
         </header>
 
-        <section className="min-h-0 px-6 pt-4" aria-label="Media selection">
+        <section className="min-h-0 px-3 sm:px-6 pt-3 sm:pt-4" aria-label="Media selection">
           <MediaCarousel
             items={items}
             selectedIds={selection.selectedIds}
@@ -183,6 +190,7 @@ export function MediaPicker({
           disabled={isDownloading || loading}
           onToggleAll={selection.toggleAll}
           onDownload={handleDownload}
+          onNewDownload={onNewDownload}
         />
       </MediaPickerDialog>
     </div>

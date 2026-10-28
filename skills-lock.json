@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "naming": {
+      "source": "cofoundy/brand-skills",
+      "sourceType": "github",
+      "skillPath": "skills/naming/SKILL.md",
+      "computedHash": "f5379c615c3771990d76188901de5aebb5bbb45c451dc1391099b92bcfab3e8b"
+    }
+  }
+}

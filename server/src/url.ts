@@ -42,6 +42,114 @@ function highlightIdFromShare(token: string): string | null {
   }
 }
 
+// Pages to open for a highlight, in order. The pasted URL stays first so a
+// stories/highlights link is crawled as itself, and a share link keeps
+// story_media_id. The canonical page and the synthetic share form are fallbacks.
+export function highlightFetchUrls(inputUrl: string, highlightId: string): string[] {
+  const canonical = `https://www.instagram.com/stories/highlights/${highlightId}/`;
+  const token = Buffer.from(`highlight:${highlightId}`, "utf8").toString("base64").replace(/=+$/, "");
+  const share = `https://www.instagram.com/s/${token}/`;
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const raw of [inputUrl.trim(), canonical, share]) {
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      continue;
+    }
+    url.hash = "";
+    const key = `${url.origin}${url.pathname.replace(/\/+$/, "")}${url.search}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (!url.pathname.endsWith("/")) url.pathname += "/";
+    urls.push(url.toString());
+  }
+  return urls;
+}
+
+// FastDl's highlight fetch: i.instagram.com reels_media with the iOS app id.
+// A WebView cookie containing ds_user_id is required for gated highlights.
+export function highlightReelsMediaRequest(
+  highlightId: string,
+  cookieHeader = "",
+): { url: string; headers: Record<string, string> } {
+  const headers: Record<string, string> = {
+    "User-Agent":
+      "Instagram 275.0.0.27.98 (iPhone14,3; iOS 15_5; en_US; en-US; scale=3.00; 1284x2778; 458234631) AppleWebKit/420+",
+    "X-IG-App-ID": "124024574287414",
+    "X-ASBD-ID": "359341",
+    "X-IG-WWW-Claim": "0",
+    Origin: "https://www.instagram.com",
+    Accept: "*/*",
+  };
+  if (cookieHeader) headers.Cookie = cookieHeader;
+  return {
+    url: `https://i.instagram.com/api/v1/feed/reels_media/?reel_ids=${encodeURIComponent(`highlight:${highlightId}`)}`,
+    headers,
+  };
+}
+
+const B64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+/**
+ * Converts an Instagram base64 shortcode to a 64-bit numeric media ID.
+ * e.g. CtKBzvqp9RA -> 3119313645828822080
+ */
+export function shortcodeToMediaId(shortcode: string): string {
+  let id = 0n;
+  for (let i = 0; i < shortcode.length; i++) {
+    const idx = B64_ALPHABET.indexOf(shortcode[i]!);
+    if (idx === -1) throw new Error(`Invalid shortcode character: ${shortcode[i]}`);
+    id = id * 64n + BigInt(idx);
+  }
+  return id.toString();
+}
+
+/**
+ * Converts a 64-bit numeric media ID back to an Instagram base64 shortcode.
+ */
+export function mediaIdToShortcode(mediaId: string): string {
+  let id = BigInt(mediaId);
+  if (id === 0n) return B64_ALPHABET[0]!;
+  let res = "";
+  while (id > 0n) {
+    const rem = Number(id % 64n);
+    res = B64_ALPHABET[rem]! + res;
+    id = id / 64n;
+  }
+  return res;
+}
+
+/**
+ * FastDl's post/reel fetch: i.instagram.com media info with the iOS app id.
+ */
+export function postMediaInfoRequest(
+  mediaId: string,
+  cookieHeader = "",
+): { url: string; headers: Record<string, string> } {
+  const headers: Record<string, string> = {
+    "User-Agent":
+      "Instagram 275.0.0.27.98 (iPhone14,3; iOS 15_5; en_US; en-US; scale=3.00; 1284x2778; 458234631) AppleWebKit/420+",
+    "X-IG-App-ID": "124024574287414",
+    "X-ASBD-ID": "359341",
+    "X-IG-WWW-Claim": "0",
+    Accept: "*/*",
+  };
+  if (cookieHeader) headers.Cookie = cookieHeader;
+  return {
+    url: `https://i.instagram.com/api/v1/media/${encodeURIComponent(mediaId)}/info/`,
+    headers,
+  };
+}
+
+/**
+ * FastDl's Snabrix fallback gateway URL.
+ */
+export function snabrixGatewayUrl(targetUrl: string, lang = "en"): string {
+  return `https://snabrix.com/${lang}?url=${encodeURIComponent(targetUrl)}&from_app=true&utm_source=from_app`;
+}
+
 // Normalizes an Instagram URL and classifies it. Throws on anything unsupported.
 export function classifyUrl(input: string): ClassifiedUrl {
   let url: URL;

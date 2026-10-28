@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { buildHandler, type JobState, loadJob } from "../src/api.ts";
-import type { CrawlOptions } from "../src/crawler.ts";
+import { type CrawlOptions, fetchSaveFromMedia } from "../src/crawler.ts";
 import {
   DownloadError,
   detectFileSignature,
@@ -499,4 +499,32 @@ describe("Job progress in API", () => {
       await rm(tmp, { recursive: true, force: true });
     }
   });
+});
+
+describe("Story and Highlight extraction via SaveFrom gateway", () => {
+  test("extracts multiple story slides from an active Instagram story", async () => {
+    const records = await fetchSaveFromMedia(
+      "https://www.instagram.com/stories/instagram/",
+      "story",
+      "instagram",
+      "story",
+    );
+    expect(records).not.toBeNull();
+    expect(records!.length).toBeGreaterThan(0);
+    expect(records![0]!.kind).toBe("story");
+    expect(records![0]!.media[0]!.sourceUrl).toBeTruthy();
+  }, 20000);
+
+  test("extracts multiple highlight slides from an active Instagram highlight", async () => {
+    const records = await fetchSaveFromMedia(
+      "https://www.instagram.com/stories/highlights/18118228273512957/",
+      "18118228273512957",
+      "arybaryxo",
+      "highlight",
+    );
+    expect(records).not.toBeNull();
+    expect(records!.length).toBeGreaterThanOrEqual(1);
+    expect(records![0]!.kind).toBe("highlight");
+    expect(records![0]!.media[0]!.sourceUrl).toBeTruthy();
+  }, 20000);
 });

@@ -22,7 +22,7 @@ export function MediaSlide({
 
   return (
     <article
-      className={`relative shrink-0 w-[min(76vw,610px)] aspect-[1.55/1] overflow-hidden rounded-2xl border bg-[#171929] transition ${isActive ? "border-violet-400/70 opacity-100 shadow-xl" : "border-white/10 opacity-40 saturate-50"}`}
+      className={`relative shrink-0 w-[75vw] max-w-[280px] sm:w-[280px] aspect-[1.55/1] overflow-hidden rounded-2xl border bg-[#171929] transition ${isActive ? "border-violet-400/70 opacity-100 shadow-xl" : "border-white/10 opacity-40 saturate-50"}`}
       data-carousel-index={index}
       aria-label={`${item.type === "image" ? "Image" : "Video"} ${number}`}
       aria-current={isActive ? "true" : undefined}

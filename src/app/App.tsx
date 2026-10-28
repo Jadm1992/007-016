@@ -41,7 +41,8 @@ export default function App() {
   const [progressMsg, setProgressMsg] = useState("");
   const [items, setItems] = useState<MediaPickerItem[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasMedia = items.length > 0 && pickerOpen;
+  const pollRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
@@ -50,6 +51,10 @@ export default function App() {
   }, []);
 
   function reset() {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
     setInput("");
     setError("");
     setProgressMsg("");
@@ -71,8 +76,7 @@ export default function App() {
     setBusy(true);
     setProgressMsg("Starting…");
     setItems([]);
-    setPickerOpen(true);
-
+    setPickerOpen(false);
     try {
       const res = await fetch("/jobs", {
         method: "POST",
@@ -110,7 +114,9 @@ export default function App() {
           }
           setItems(gallery);
           setBusy(false);
-          if (!gallery.length) {
+          if (gallery.length > 0) {
+            setPickerOpen(true);
+          } else {
             setPickerOpen(false);
             setError("Job finished but no media was saved.");
           }
@@ -119,7 +125,7 @@ export default function App() {
         if (status.status === "failed") {
           throw new Error(status.error || "Download failed");
         }
-        pollRef.current = setTimeout(poll, 1400);
+        pollRef.current = window.setTimeout(poll, 1400);
       };
       await poll();
     } catch (err) {
@@ -202,10 +208,10 @@ export default function App() {
         </div>
 
         <div
-          className="rounded-2xl border p-6"
+          className="rounded-2xl border p-4 sm:p-6"
           style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
-          <form onSubmit={handleSubmit} className="flex gap-3 mb-4">
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4">
             <div className="relative flex-1">
               <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
@@ -228,7 +234,7 @@ export default function App() {
             <button
               type="submit"
               disabled={!input.trim() || busy}
-              className="px-5 py-3 rounded-xl text-white transition-all hover:opacity-90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shrink-0"
+              className="w-full sm:w-auto px-5 py-3 rounded-xl text-white transition-all hover:opacity-90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
               style={{
                 background:
                   "linear-gradient(135deg, var(--primary), var(--accent))",
@@ -244,6 +250,13 @@ export default function App() {
               {busy ? "Extracting…" : "Download"}
             </button>
           </form>
+
+          {busy && (
+            <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+              <span>{progressMsg || "Extracting…"}</span>
+            </div>
+          )}
 
           {error && (
             <div
@@ -263,11 +276,8 @@ export default function App() {
             </div>
           )}
 
-          {(busy || items.length > 0) && (
-            <div
-              className="mt-4 pt-4 border-t flex items-center justify-between gap-3"
-              style={{ borderColor: "var(--border)" }}
-            >
+          {hasMedia && (
+            <div className="mt-4 pt-4 border-t border-border animate-in fade-in slide-in-from-top-4 duration-300">
               <MediaPicker
                 items={items}
                 title="Choose your media"
@@ -275,16 +285,13 @@ export default function App() {
                 loading={busy}
                 status={progressMsg}
                 hideTrigger
-                onOpenChange={setPickerOpen}
+                onOpenChange={(open) => {
+                  if (!open) reset();
+                  else setPickerOpen(true);
+                }}
+                onClose={reset}
+                onNewDownload={reset}
               />
-              <button
-                type="button"
-                onClick={reset}
-                className="px-4 py-2 rounded-xl border text-sm"
-                style={{ borderColor: "var(--border)" }}
-              >
-                New Download
-              </button>
             </div>
           )}
         </div>

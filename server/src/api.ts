@@ -82,7 +82,7 @@ export async function loadJobPosts(
   const jobName =
     target.kind === "profile"
       ? target.username!
-      : (target.shortcode ?? target.storyId ?? "story");
+      : (target.highlightId ?? target.shortcode ?? target.storyId ?? target.username ?? "story");
   const jobDir = path.join(outDir, jobName);
   const records: PostRecord[] = [];
   for (const entry of await readdir(jobDir, { withFileTypes: true }).catch(

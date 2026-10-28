@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { classifyFailure } from "../src/crawler.ts";
+import { classifyFailure, highlightNeedsLogin } from "../src/crawler.ts";
 import {
   downloadMedia,
   extensionFor,
@@ -192,5 +192,19 @@ describe("helpers", () => {
       "malformed_metadata",
     );
     expect(classifyFailure("something odd")).toBe("unknown");
+  });
+
+  test("highlightNeedsLogin matches the signup wall and ignores a normal login link", () => {
+    expect(
+      highlightNeedsLogin("Sign up to see more story highlights from arybaryxo."),
+    ).toBe(true);
+    expect(highlightNeedsLogin("View more highlights. Sign up")).toBe(true);
+    expect(
+      highlightNeedsLogin(
+        'xdt_api__v1__feed__reels_media__connection":{"edges":[],"page_info":{}}',
+      ),
+    ).toBe(true);
+    expect(highlightNeedsLogin('{"reels":{},"status":"ok"}')).toBe(true);
+    expect(highlightNeedsLogin("<a>Log in</a>")).toBe(false);
   });
 });

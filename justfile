@@ -18,3 +18,7 @@ test:
 # Typecheck the server
 typecheck:
     cd server && bunx tsc --noEmit
+
+# Run mobile UI audit (iPhone 17 emulation with video load timing & screenshots)
+mobile query="":
+    ./scripts/browser-mobile.sh {{ quote(query) }}

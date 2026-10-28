@@ -38,7 +38,7 @@ export function MediaCarousel({
   return (
     <section
       ref={carousel.viewportRef}
-      className={`relative overflow-hidden rounded-2xl touch-pan-y select-none ${carousel.isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+      className={`relative overflow-hidden rounded-2xl touch-pan-x select-none ${carousel.isDragging ? "cursor-grabbing" : "cursor-grab"}`}
       aria-label="Media carousel. Drag horizontally or use the left and right arrow keys."
       aria-busy={loading || undefined}
       tabIndex={0}
@@ -58,7 +58,7 @@ export function MediaCarousel({
           {SKELETONS.map((id, index) => (
             <article
               key={id}
-              className={`shrink-0 w-[min(76vw,610px)] aspect-[1.55/1] overflow-hidden rounded-2xl border ${index === carousel.activeIndex ? "border-violet-400/70" : "border-white/10 opacity-40"}`}
+              className={`shrink-0 w-[75vw] max-w-[280px] sm:w-[280px] aspect-[1.55/1] overflow-hidden rounded-2xl border ${index === carousel.activeIndex ? "border-violet-400/70" : "border-white/10 opacity-40"}`}
               data-carousel-index={index}
               aria-hidden="true"
             >
