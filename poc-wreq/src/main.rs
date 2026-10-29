@@ -296,4 +296,53 @@ mod tests {
         server.abort();
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_cors_preflight_and_response() -> Result<(), Box<dyn std::error::Error>> {
+        let client = Client::builder()
+            .emulation(Emulation::Chrome142)
+            .build()?;
+
+        let cookie_header = Arc::new(RwLock::new(None));
+        let browser_bridge = BrowserBridge::new("test-cors-bridge");
+        let job_manager = JobManager::new(
+            client.clone(),
+            cookie_header.clone(),
+            browser_bridge.clone(),
+        );
+
+        let state = Arc::new(AppState {
+            client: client.clone(),
+            job_manager,
+            cookie_header,
+            browser_bridge,
+        });
+
+        let app = create_router(state, None);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+
+        // Send raw HTTP request with Origin header to verify CORS headers returned
+        let mut stream = tokio::net::TcpStream::connect(addr).await?;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let preflight_req = "OPTIONS /jobs HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: https://cliptrawl.xyz\r\nAccess-Control-Request-Method: POST\r\nAccess-Control-Request-Headers: content-type\r\nConnection: close\r\n\r\n";
+        stream.write_all(preflight_req.as_bytes()).await?;
+
+        let mut response = String::new();
+        stream.read_to_string(&mut response).await?;
+
+        assert!(response.contains("200 OK") || response.contains("204 No Content"));
+        assert!(
+            response.to_lowercase().contains("access-control-allow-origin: *")
+                || response.contains("access-control-allow-origin: https://cliptrawl.xyz"),
+            "Missing Access-Control-Allow-Origin header in preflight response: {response}"
+        );
+
+        server.abort();
+        Ok(())
+    }
 }
