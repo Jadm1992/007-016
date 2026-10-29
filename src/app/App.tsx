@@ -33,6 +33,8 @@ type MediaItem = {
 type PostRecord = {
   media: MediaItem[];
 };
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+
 
 export default function App() {
   const [input, setInput] = useState("");
@@ -78,7 +80,7 @@ export default function App() {
     setItems([]);
     setPickerOpen(false);
     try {
-      const res = await fetch("/jobs", {
+      const res = await fetch(`${API_BASE}/jobs`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ url }),
@@ -87,11 +89,11 @@ export default function App() {
       if (!res.ok) throw new Error(job.error || "Failed to start job");
 
       const poll = async () => {
-        const statusRes = await fetch(`/jobs/${job.id}`);
+        const statusRes = await fetch(`${API_BASE}/jobs/${job.id}`);
         const status = (await statusRes.json()) as Job;
         if (status.progress?.message) setProgressMsg(status.progress.message);
         if (status.status === "succeeded") {
-          const posts = (await fetch(`/jobs/${job.id}/posts`).then((r) =>
+          const posts = (await fetch(`${API_BASE}/jobs/${job.id}/posts`).then((r) =>
             r.json(),
           )) as PostRecord[];
           const gallery: MediaPickerItem[] = [];
@@ -99,7 +101,7 @@ export default function App() {
             for (const m of post.media) {
               if (m.status !== "saved" || !m.localPath) continue;
               const mediaUrl =
-                "/media/" +
+                `${API_BASE}/media/` +
                 m.localPath.split("/").map(encodeURIComponent).join("/");
               const filename =
                 m.localPath.split("/").pop() ||
