@@ -13,3 +13,5 @@ scripts/
 *.img
 *.mp4
 .atuin/
+target/
+**/target/
