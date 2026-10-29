@@ -12,3 +12,4 @@ scripts/
 *.jpeg
 *.img
 *.mp4
+.atuin/
