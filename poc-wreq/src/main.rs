@@ -1,26 +1,31 @@
 pub mod browser_bridge;
 pub mod extractor;
+pub mod jobs;
 
 use axum::{
     body::Body,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
     routing::{get, post},
     Router,
 };
 use browser_bridge::BrowserBridge;
-use extractor::{extract_from_media_info, shortcode_to_media_id, ExtractedPost};
+use extractor::ExtractedPost;
+use jobs::{JobManager, JobState};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tower_http::cors::CorsLayer;
+use tower_http::services::ServeDir;
 use wreq::Client;
 use wreq_util::Emulation;
 
 #[derive(Clone)]
 pub struct AppState {
     pub client: Client,
+    pub job_manager: JobManager,
     pub cookie_header: Arc<RwLock<Option<String>>>,
     pub browser_bridge: BrowserBridge,
 }
@@ -32,13 +37,8 @@ pub struct StreamParams {
 }
 
 #[derive(Deserialize)]
-pub struct InfoParams {
-    pub shortcode: String,
-}
-
-#[derive(Deserialize)]
-pub struct WarmupPayload {
-    pub url: Option<String>,
+pub struct CreateJobPayload {
+    pub url: String,
 }
 
 #[derive(Serialize)]
@@ -46,20 +46,49 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct SessionStatusResponse {
-    pub has_cookies: bool,
-    pub session_name: String,
-}
-
 /// Zero-disk streaming pass-through: pipes media directly from CDN to visitor's browser.
 async fn stream_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<StreamParams>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let upstream = state
-        .client
-        .get(&params.url)
+    pipe_stream(&state.client, &params.url, params.filename.as_deref()).await
+}
+
+/// Dynamic zero-disk media route matching frontend's `/media/:job_id/:filename` format.
+async fn media_route_handler(
+    State(state): State<Arc<AppState>>,
+    Path((job_id, filename)): Path<(String, String)>,
+) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    // Parse index from filename (e.g., "0.mp4" -> 0)
+    let idx: usize = filename
+        .split('.')
+        .next()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+
+    let source_url = state
+        .job_manager
+        .find_media_source(&job_id, idx)
+        .await
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!("Media {filename} in job {job_id} not found"),
+                }),
+            )
+        })?;
+
+    pipe_stream(&state.client, &source_url, Some(&filename)).await
+}
+
+async fn pipe_stream(
+    client: &Client,
+    target_url: &str,
+    filename: Option<&str>,
+) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    let upstream = client
+        .get(target_url)
         .header("Referer", "https://www.instagram.com/")
         .send()
         .await
@@ -87,8 +116,9 @@ async fn stream_handler(
         }
     }
 
-    let filename = params.filename.unwrap_or_else(|| "media.mp4".to_string());
-    let disposition = format!("attachment; filename=\"{filename}\"");
+    let default_name = "media.mp4".to_string();
+    let fname = filename.unwrap_or(&default_name);
+    let disposition = format!("attachment; filename=\"{fname}\"");
     if let Ok(v) = header::HeaderValue::from_str(&disposition) {
         headers.insert(header::CONTENT_DISPOSITION, v);
     }
@@ -98,179 +128,66 @@ async fn stream_handler(
     Ok((status, headers, body).into_response())
 }
 
-/// Helper to query Instagram Private Mobile API.
-async fn fetch_media_info(
-    client: &Client,
-    media_id: u64,
-    shortcode: &str,
-    cookies: Option<&str>,
-) -> Result<ExtractedPost, (StatusCode, String)> {
-    let url = format!("https://i.instagram.com/api/v1/media/{media_id}/info/");
-    let mut req = client
-        .get(&url)
-        .header(
-            "User-Agent",
-            "Instagram 275.0.0.27.98 (iPhone14,3; iOS 15_5; en_US; en-US; scale=3.00; 1284x2778; 458234631) AppleWebKit/420+",
-        )
-        .header("x-asbd-id", "359341")
-        .header("x-ig-app-id", "124024574287414")
-        .header("x-ig-www-claim", "0")
-        .header("Accept", "*/*");
-
-    if let Some(c) = cookies {
-        req = req.header("Cookie", c);
+/// Create a new extraction job (POST /jobs).
+async fn create_job_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CreateJobPayload>,
+) -> Result<(StatusCode, Json<JobState>), (StatusCode, Json<ErrorResponse>)> {
+    match state.job_manager.create_job(&payload.url).await {
+        Ok(job) => Ok((StatusCode::ACCEPTED, Json(job))),
+        Err(err) => Err((StatusCode::BAD_REQUEST, Json(ErrorResponse { error: err }))),
     }
-
-    let resp = req.send().await.map_err(|e| {
-        (
-            StatusCode::BAD_GATEWAY,
-            format!("Instagram API request failed: {e}"),
-        )
-    })?;
-
-    let status = resp.status();
-    let body_text = resp.text().await.unwrap_or_default();
-
-    if !status.is_success() {
-        return Err((
-            StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
-            format!("Instagram returned HTTP {status}: {body_text}"),
-        ));
-    }
-
-    let val: Value = serde_json::from_str(&body_text).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to parse Instagram response: {e}"),
-        )
-    })?;
-
-    extract_from_media_info(&val, shortcode)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "No media items found in post".to_string()))
 }
 
-/// Query Instagram for post info using shortcode -> media_id with automatic browser fallback.
-async fn info_handler(
+/// Get job status (GET /jobs/:id).
+async fn get_job_handler(
     State(state): State<Arc<AppState>>,
-    Query(params): Query<InfoParams>,
-) -> Result<Json<ExtractedPost>, (StatusCode, Json<ErrorResponse>)> {
-    let media_id = shortcode_to_media_id(&params.shortcode).ok_or_else(|| {
-        (
-            StatusCode::BAD_REQUEST,
+    Path(id): Path<String>,
+) -> Result<Json<JobState>, (StatusCode, Json<ErrorResponse>)> {
+    match state.job_manager.get_job(&id).await {
+        Some(job) => Ok(Json(job)),
+        None => Err((
+            StatusCode::NOT_FOUND,
             Json(ErrorResponse {
-                error: format!("Invalid shortcode: {}", params.shortcode),
-            }),
-        )
-    })?;
-
-    // Attempt 1: Fast path with current cached cookies
-    let mut cookies = {
-        let guard = state.cookie_header.read().await;
-        guard.clone()
-    };
-    if cookies.is_none() {
-        cookies = state.browser_bridge.get_cached().await;
-    }
-
-    let result = fetch_media_info(
-        &state.client,
-        media_id,
-        &params.shortcode,
-        cookies.as_deref(),
-    )
-    .await;
-
-    // Check if Tier 2 (agent-browser fallback) is needed
-    let final_post = match result {
-        Ok(post) => post,
-        Err((status, msg))
-            if status == StatusCode::FORBIDDEN
-                || status == StatusCode::UNAUTHORIZED
-                || msg.contains("login_required") =>
-        {
-            // Trigger agent-browser warmup to harvest fresh edge cookies
-            let target_url = format!("https://www.instagram.com/p/{}/", params.shortcode);
-            match state.browser_bridge.warm_up_session(&target_url).await {
-                Ok(new_cookies) => {
-                    let mut guard = state.cookie_header.write().await;
-                    *guard = Some(new_cookies.clone());
-
-                    // Retry fast path with hydrated cookies
-                    fetch_media_info(
-                        &state.client,
-                        media_id,
-                        &params.shortcode,
-                        Some(&new_cookies),
-                    )
-                    .await
-                    .map_err(|(code, err)| (code, Json(ErrorResponse { error: err })))?
-                }
-                Err(bridge_err) => {
-                    return Err((
-                        StatusCode::BAD_GATEWAY,
-                        Json(ErrorResponse {
-                            error: format!(
-                                "Instagram requires session and agent-browser warmup failed: {bridge_err}"
-                            ),
-                        }),
-                    ));
-                }
-            }
-        }
-        Err((status, msg)) => {
-            return Err((status, Json(ErrorResponse { error: msg })));
-        }
-    };
-
-    Ok(Json(final_post))
-}
-
-/// Explicit warmup route to pre-seed cookies from agent-browser.
-async fn warmup_handler(
-    State(state): State<Arc<AppState>>,
-    body: Option<Json<WarmupPayload>>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
-    let target = body
-        .and_then(|b| b.url.clone())
-        .unwrap_or_else(|| "https://www.instagram.com/".to_string());
-
-    match state.browser_bridge.warm_up_session(&target).await {
-        Ok(cookies) => {
-            let mut guard = state.cookie_header.write().await;
-            *guard = Some(cookies);
-            Ok(Json(serde_json::json!({
-                "status": "warmed_up",
-                "session_name": state.browser_bridge.session_name,
-            })))
-        }
-        Err(err) => Err((
-            StatusCode::BAD_GATEWAY,
-            Json(ErrorResponse {
-                error: format!("Warmup failed: {err}"),
+                error: format!("Job {id} not found"),
             }),
         )),
     }
 }
 
-/// Status check for current in-memory session.
-async fn session_status_handler(
+/// Get job posts (GET /jobs/:id/posts).
+async fn get_job_posts_handler(
     State(state): State<Arc<AppState>>,
-) -> Json<SessionStatusResponse> {
-    let guard = state.cookie_header.read().await;
-    let has_cookies = guard.is_some() || state.browser_bridge.get_cached().await.is_some();
-    Json(SessionStatusResponse {
-        has_cookies,
-        session_name: state.browser_bridge.session_name.clone(),
-    })
+    Path(id): Path<String>,
+) -> Result<Json<Vec<ExtractedPost>>, (StatusCode, Json<ErrorResponse>)> {
+    match state.job_manager.get_job_posts(&id).await {
+        Some(posts) => Ok(Json(posts)),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("Job {id} not found"),
+            }),
+        )),
+    }
 }
 
-pub fn create_router(state: Arc<AppState>) -> Router {
-    Router::new()
+pub fn create_router(state: Arc<AppState>, public_dir: Option<PathBuf>) -> Router {
+    let mut router = Router::new()
         .route("/stream", get(stream_handler))
-        .route("/api/info", get(info_handler))
-        .route("/api/session/warmup", post(warmup_handler))
-        .route("/api/session/status", get(session_status_handler))
-        .with_state(state)
+        .route("/media/{job_id}/{filename}", get(media_route_handler))
+        .route("/jobs", post(create_job_handler))
+        .route("/jobs/{id}", get(get_job_handler))
+        .route("/jobs/{id}/posts", get(get_job_posts_handler))
+        .layer(CorsLayer::permissive())
+        .with_state(state);
+
+    if let Some(dir) = public_dir {
+        if dir.exists() {
+            router = router.fallback_service(ServeDir::new(dir));
+        }
+    }
+
+    router
 }
 
 #[tokio::main]
@@ -279,12 +196,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .emulation(Emulation::Chrome142)
         .build()?;
 
-    let initial_cookies = std::env::var("IG_COOKIE_HEADER").ok();
+    let cookie_header = Arc::new(RwLock::new(std::env::var("IG_COOKIE_HEADER").ok()));
     let browser_bridge = BrowserBridge::new("ig-session");
 
+    let job_manager = JobManager::new(
+        client.clone(),
+        cookie_header.clone(),
+        browser_bridge.clone(),
+    );
+
     let state = Arc::new(AppState {
-        client: client.clone(),
-        cookie_header: Arc::new(RwLock::new(initial_cookies)),
+        client,
+        job_manager,
+        cookie_header,
         browser_bridge,
     });
 
@@ -293,7 +217,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     println!("Axum server running on http://{addr}");
 
-    let app = create_router(state);
+    let public_dir = std::path::Path::new("../public").canonicalize().ok();
+    let app = create_router(state, public_dir);
+
     axum::serve(listener, app).await?;
     Ok(())
 }
@@ -303,18 +229,27 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_stream_pass_through() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_full_job_and_stream_flow() -> Result<(), Box<dyn std::error::Error>> {
         let client = Client::builder()
             .emulation(Emulation::Chrome142)
             .build()?;
 
+        let cookie_header = Arc::new(RwLock::new(None));
+        let browser_bridge = BrowserBridge::new("test-full-bridge");
+        let job_manager = JobManager::new(
+            client.clone(),
+            cookie_header.clone(),
+            browser_bridge.clone(),
+        );
+
         let state = Arc::new(AppState {
             client: client.clone(),
-            cookie_header: Arc::new(RwLock::new(None)),
-            browser_bridge: BrowserBridge::new("test-stream-bridge"),
+            job_manager,
+            cookie_header,
+            browser_bridge,
         });
 
-        let app = create_router(state);
+        let app = create_router(state.clone(), None);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let addr = listener.local_addr()?;
 
@@ -322,53 +257,41 @@ mod tests {
             let _ = axum::serve(listener, app).await;
         });
 
-        let target = format!(
-            "http://{addr}/stream?url=https://httpbin.org/bytes/512&filename=clip.mp4"
+        // 1. Create job
+        let payload = serde_json::json!({
+            "url": "https://www.instagram.com/reel/CtKBzvqp9RA/"
+        });
+        let res = client
+            .post(&format!("http://{addr}/jobs"))
+            .header("Content-Type", "application/json")
+            .body(payload.to_string())
+            .send()
+            .await?;
+        assert_eq!(res.status().as_u16(), 202);
+        let job: JobState = serde_json::from_slice(&res.bytes().await?)?;
+        assert_eq!(job.input_url, "https://www.instagram.com/reel/CtKBzvqp9RA/");
+
+        // 2. Poll job status
+        let poll_res = client
+            .get(&format!("http://{addr}/jobs/{}", job.id))
+            .send()
+            .await?;
+        assert_eq!(poll_res.status().as_u16(), 200);
+
+        // 3. Test direct stream route
+        let stream_url = format!(
+            "http://{addr}/stream?url=https://httpbin.org/bytes/256&filename=test.mp4"
         );
-        let resp = client.get(&target).send().await?;
-        assert_eq!(resp.status().as_u16(), 200);
+        let stream_res = client.get(&stream_url).send().await?;
+        assert_eq!(stream_res.status().as_u16(), 200);
         assert_eq!(
-            resp.headers()
+            stream_res
+                .headers()
                 .get("content-disposition")
                 .and_then(|v| v.to_str().ok()),
-            Some("attachment; filename=\"clip.mp4\"")
+            Some("attachment; filename=\"test.mp4\"")
         );
-
-        let body = resp.bytes().await?;
-        assert_eq!(body.len(), 512);
-
-        server.abort();
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_session_status_endpoint() -> Result<(), Box<dyn std::error::Error>> {
-        let client = Client::builder()
-            .emulation(Emulation::Chrome142)
-            .build()?;
-
-        let state = Arc::new(AppState {
-            client: client.clone(),
-            cookie_header: Arc::new(RwLock::new(Some("sessionid=test123".to_string()))),
-            browser_bridge: BrowserBridge::new("test-status-bridge"),
-        });
-
-        let app = create_router(state);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
-        let addr = listener.local_addr()?;
-
-        let server = tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
-        });
-
-        let target = format!("http://{addr}/api/session/status");
-        let resp = client.get(&target).send().await?;
-        assert_eq!(resp.status().as_u16(), 200);
-
-        let json_body: SessionStatusResponse =
-            serde_json::from_slice(&resp.bytes().await?)?;
-        assert!(json_body.has_cookies);
-        assert_eq!(json_body.session_name, "test-status-bridge");
+        assert_eq!(stream_res.bytes().await?.len(), 256);
 
         server.abort();
         Ok(())
