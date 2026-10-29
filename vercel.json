@@ -2,6 +2,19 @@
   "buildCommand": "bun run build",
   "outputDirectory": "public",
   "framework": "vite",
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "cliptrawl.vercel.app"
+        }
+      ],
+      "destination": "https://cliptrawl.xyz/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
