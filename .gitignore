@@ -20,3 +20,6 @@ target/
 /.agents/
 /.grok/
 /poc-wreq/Dockerfile
+
+# repowise local index and caches
+.repowise/
