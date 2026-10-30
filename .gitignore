@@ -13,3 +13,10 @@ scripts/
 *.img
 *.mp4
 .atuin/
+target/
+**/target/
+.agents/
+.grok/
+/.agents/
+/.grok/
+/poc-wreq/Dockerfile
