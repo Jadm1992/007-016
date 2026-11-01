@@ -15,3 +15,6 @@ scripts/
 .atuin/
 target/
 **/target/
+.agents/
+.grok/
+.repowise/
